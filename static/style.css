@@ -1,0 +1,511 @@
+/* style.css */
+body {
+    background-color: #f4f7fa;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #333;
+    padding: 20px;
+}
+
+.container {
+    max-width: 960px;
+    margin: auto;
+    background: #fff;
+    padding: 30px 40px;
+    border-radius: 12px;
+    box-shadow: 0 4px 25px rgba(0,0,0,0.1);
+}
+
+header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    border-bottom: 3px solid #000000; /* Bootstrap Primary */
+    padding-bottom: 12px;
+    margin-bottom: 30px;
+}
+
+.logo {
+    width: 100px;
+    height: 60px;
+    object-fit: contain;
+}
+
+header h1 {
+    font-size: 1.9rem;
+    color: #000000;
+}
+
+/* Slider */
+.slider {
+    background-color: #000000;
+    color: white;
+    border-radius: 10px;
+    padding: 20px 30px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    margin-bottom: 30px;
+    position: relative;
+    user-select: none;
+    overflow: hidden;
+}
+
+.slides {
+    height: 110px;
+    overflow: hidden;
+    position: relative;
+}
+
+.slide {
+    display: none;
+    animation: fadeInSlide 1s ease forwards;
+    position: absolute;
+    width: 100%;
+    top: 0;
+    left: 0;
+}
+
+.slide.active {
+    display: block;
+    position: relative;
+}
+
+.slide h2 {
+    font-size: 1.5rem;
+    margin-bottom: 8px;
+}
+
+.slide p {
+    font-size: 1.05rem;
+    opacity: 0.85;
+}
+
+.slider-controls {
+    position: absolute;
+    top: 50%;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+
+.slider-controls button {
+    pointer-events: auto;
+    background: transparent !important;
+    border: none !important;
+    color: transparent !important;
+    font-size: 0 !important;
+    line-height: 0 !important;
+    padding: 0.5rem 1rem;
+    border-radius: 50%;
+    cursor: pointer;
+    user-select: none;
+    box-shadow: none !important;
+    outline: none !important;
+    text-shadow: none !important;
+}
+
+@keyframes fadeInSlide {
+    from {
+        opacity: 0;
+        transform: translateX(40px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Table */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    box-shadow: 0 0 15px rgba(0,0,0,0.05);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+thead {
+    background-color: #000000;
+    color: white;
+}
+
+thead th {
+    padding: 14px 20px;
+    text-align: left;
+    font-weight: 600;
+}
+
+tbody tr {
+    border-bottom: 1px solid #eee;
+    transition: background-color 0.3s ease;
+}
+
+tbody tr:hover {
+    background-color: #f1faff;
+}
+
+tbody td {
+    padding: 12px 20px;
+    color: #444;
+}
+
+tbody tr:last-child {
+    border-bottom: none;
+}
+
+td[colspan="4"] {
+    text-align: center;
+    font-style: italic;
+    color: #888;
+    padding: 25px 0;
+}
+
+/* Refresh Button */
+#refreshBtn {
+    margin-bottom: 20px;
+    background: #000000;
+    border: none;
+    color: white;
+    font-weight: 600;
+    padding: 10px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+#refreshBtn:hover {
+    background-color: #084298;
+}
+
+/* Footer */
+footer {
+    margin-top: 40px;
+    text-align: center;
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    .container {
+        padding: 20px;
+    }
+
+    header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .logo {
+        width: 50px;
+        height: 50px;
+    }
+
+    thead th,
+    tbody td {
+        padding: 10px 12px;
+        font-size: 0.9rem;
+    }
+
+    .slide h2 {
+        font-size: 1.2rem;
+    }
+
+    .slide p {
+        font-size: 1rem;
+    }
+}
+/* Style tombol logout */
+.btn-danger {
+    background-color: #000000; /* Merah standar Bootstrap */
+    border-color: #000000;
+    color: white;
+    padding: 6px 12px;
+    font-size: 0.9rem;
+    border-radius: 4px;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.btn-danger:hover,/* Reset dan font */
+body {
+    background-color: #fff; /* putih bersih */
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #222; /* hitam gelap */
+    padding: 20px;
+    margin: 0;
+}
+
+.container.white-container {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 1px 30\\px; /* padding atas dikurangi dari 30px ke 10px */
+    background: #fff;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+
+
+/* Header */
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    border-bottom: 2px solid #000;
+    padding-bottom: 12px;
+    margin-bottom: 30px;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.logo {
+    width: 100px;
+    height: 60px;
+    object-fit: contain;
+}
+
+.header h1 {
+    font-size: 1.8rem;
+    color: #000;
+    margin: 0;
+}
+
+.header-right .username {
+    font-weight: 600;
+    color: #222;
+}
+
+.btn-logout {
+    background-color: #000;
+    border: none;
+    color: white;
+    padding: 6px 12px;
+    font-size: 0.9rem;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    transition: background-color 0.3s ease;
+}
+
+.btn-logout:hover,
+.btn-logout:focus {
+    background-color: #222;
+    color: #fff;
+}
+
+/* Slider */
+.slider {
+    background-color: #fff; /* putih */
+    color: #000;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px 30px;
+    margin-bottom: 30px;
+    position: relative;
+    user-select: none;
+    overflow: hidden;
+}
+
+.slides {
+    height: 110px;
+    position: relative;
+    overflow: hidden;
+}
+
+.slide {
+    display: none;
+    position: absolute;
+    width: 100%;
+    top: 0;
+    left: 0;
+    color: #000;
+    animation: fadeInSlide 0.7s ease forwards;
+}
+
+.slide.active {
+    display: block;
+    position: relative;
+}
+
+.slide h2 {
+    font-size: 1.5rem;
+    margin-bottom: 8px;
+}
+
+.slide p {
+    font-size: 1.05rem;
+    opacity: 0.8;
+}
+
+.slider-controls {
+    position: absolute;
+    top: 50%;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+
+.slider-controls button {
+    pointer-events: auto;
+    background: transparent;
+    border: none;
+    color: #444;
+    font-size: 18px;
+    padding: 0.25rem 0.5rem;
+    border-radius: 50%;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.3s ease;
+}
+
+.slider-controls button:hover,
+.slider-controls button:focus {
+    color: #000;
+}
+
+@keyframes fadeInSlide {
+    from {
+        opacity: 0;
+        transform: translateX(40px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Tabel */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+thead {
+    background-color: #000;
+    color: white;
+}
+
+thead th {
+    padding: 14px 20px;
+    text-align: left;
+    font-weight: 600;
+}
+
+tbody tr {
+    border-bottom: 1px solid #ddd;
+    transition: background-color 0.3s ease;
+}
+
+tbody tr:hover {
+    background-color: #f0f0f0;
+}
+
+tbody td {
+    padding: 12px 20px;
+    color: #222;
+}
+
+tbody tr:last-child {
+    border-bottom: none;
+}
+
+td[colspan="4"] {
+    text-align: center;
+    font-style: italic;
+    color: #666;
+    padding: 25px 0;
+}
+
+/* Tombol Refresh */
+.btn-refresh {
+    margin-bottom: 20px;
+    background: #000;
+    border: none;
+    color: white;
+    font-weight: 600;
+    padding: 10px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.btn-refresh:hover {
+    background-color: #222;
+}
+
+/* Footer */
+.footer {
+    margin-top: 40px;
+    text-align: center;
+    color: #444;
+    font-size: 0.9rem;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    .container.white-container {
+        padding: 0px;
+    }
+
+    .header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .logo {
+        width: 50px;
+        height: 50px;
+    }
+
+    thead th,
+    tbody td {
+        padding: 10px 12px;
+        font-size: 0.9rem;
+    }
+
+    .slide h2 {
+        font-size: 1.2rem;
+    }
+
+    .slide p {
+        font-size: 1rem;
+    }
+}
+
+.btn-danger:focus {
+    background-color: #000000; /* Warna merah lebih gelap saat hover */
+    border-color: #000000;
+    color: white;
+    text-decoration: none;
+}
+
+.btn-danger:active {
+    background-color: #000000;
+    border-color: #000000;
+    color: white;
+}
+
+.bg-light {
+    --bs-bg-opacity: 1;
+    background-color: rgb(255 255 255) !important;
+}
+
+
