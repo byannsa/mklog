@@ -54,20 +54,37 @@
               method="POST">
               <div class="modal-body row">
                 <div class="col-md-6 position-relative">
-                  <video
-                    id="video"
-                    width="100%"
-                    height="auto"
-                    autoplay
-                    style="border-radius: 12px; background: #222"></video>
-                  <canvas id="canvas" style="display: none"></canvas>
+                  <div style="position: relative">
+                    <video
+                      id="video"
+                      width="100%"
+                      height="auto"
+                      autoplay
+                      style="
+                        border-radius: 12px;
+                        background: #222;
+                        display: block;
+                      "></video>
+                    <canvas
+                      id="overlay"
+                      style="
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        pointer-events: none;
+                      "></canvas>
+                  </div>
+                  <!-- Pindahkan status-indikator ke luar div relative -->
+                  <div
+                    id="status-indikator"
+                    style="margin-top: 10px; text-align: center">
+                    <span id="status-senyum">Senyum: ❌</span> |
+                    <span id="status-motion">Motion: ❌</span> |
+                    <span id="status-blink">Blink: ❌</span>
+                  </div>
                   <input type="hidden" name="foto" id="fotoInput" />
-                  <button
-                    type="button"
-                    class="btn btn-success mt-2 w-100"
-                    id="ambilFotoBtn">
-                    Ambil Foto
-                  </button>
                 </div>
                 <div class="col-md-6">
                   <div class="mb-3">
@@ -397,55 +414,191 @@
       </style>
 
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-      <script src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+      <script src="https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js"></script>
       <script>
-        let video = document.getElementById("video");
-        let canvas = document.getElementById("canvas");
-        let fotoInput = document.getElementById("fotoInput");
-        let ambilBtn = document.getElementById("ambilFotoBtn");
-        let submitBtn = document.getElementById("submitAbsen");
-        let absenModal = document.getElementById("absenModal");
+        const video = document.getElementById("video");
+        const overlay = document.getElementById("overlay");
+        const fotoInput = document.getElementById("fotoInput");
+        const submitBtn = document.getElementById("submitAbsen");
+        const absenModal = document.getElementById("absenModal");
+        const statusSenyum = document.getElementById("status-senyum");
+        const statusMotion = document.getElementById("status-motion");
+        const statusBlink = document.getElementById("status-blink");
         let stream = null;
+        let detecting = false;
 
-        // Aktifkan webcam saat modal dibuka
-        absenModal.addEventListener("shown.bs.modal", function () {
-          navigator.mediaDevices
-            .getUserMedia({ video: true })
-            .then((s) => {
-              stream = s;
-              video.srcObject = stream;
-            })
-            .catch((err) => {
-              alert("Tidak bisa mengakses kamera!");
-            });
+        // Load face-api.js models
+        async function loadModels() {
+          await faceapi.nets.tinyFaceDetector.loadFromUri(
+            "https://justadudewhohacks.github.io/face-api.js/models"
+          );
+          await faceapi.nets.faceExpressionNet.loadFromUri(
+            "https://justadudewhohacks.github.io/face-api.js/models"
+          );
+          await faceapi.nets.faceLandmark68Net.loadFromUri(
+            "https://justadudewhohacks.github.io/face-api.js/models"
+          );
+        }
+
+        // Start webcam
+        async function startVideo() {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          video.srcObject = stream;
+        }
+
+        let lastImageData = null;
+        let noMotionCount = 0;
+        let hasBlinked = false;
+
+        function getEAR(eye) {
+          // Eye Aspect Ratio (EAR) untuk deteksi kedipan
+          const a = Math.hypot(eye[1].x - eye[5].x, eye[1].y - eye[5].y);
+          const b = Math.hypot(eye[2].x - eye[4].x, eye[2].y - eye[4].y);
+          const c = Math.hypot(eye[0].x - eye[3].x, eye[0].y - eye[3].y);
+          return (a + b) / (2.0 * c);
+        }
+
+        async function detectSmile() {
+          overlay.width = video.videoWidth;
+          overlay.height = video.videoHeight;
+          const ctx = overlay.getContext("2d");
+          detecting = true;
+          let smiling = false;
+          let prevLeftEAR = 0.3,
+            prevRightEAR = 0.3; // nilai awal
+          const options = new faceapi.TinyFaceDetectorOptions({
+            inputSize: 320,
+            scoreThreshold: 0.3,
+          });
+
+          while (detecting) {
+            const result = await faceapi
+              .detectSingleFace(video, options)
+              .withFaceLandmarks()
+              .withFaceExpressions();
+            ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+            // --- Motion Detection ---
+            ctx.drawImage(video, 0, 0, overlay.width, overlay.height);
+            const imageData = ctx.getImageData(
+              0,
+              0,
+              overlay.width,
+              overlay.height
+            );
+            let motion = true;
+            if (lastImageData) {
+              let diff = 0;
+              for (let i = 0; i < imageData.data.length; i += 4) {
+                diff += Math.abs(imageData.data[i] - lastImageData.data[i]);
+                diff += Math.abs(
+                  imageData.data[i + 1] - lastImageData.data[i + 1]
+                );
+                diff += Math.abs(
+                  imageData.data[i + 2] - lastImageData.data[i + 2]
+                );
+              }
+              motion = diff > 100000;
+            }
+            lastImageData = imageData;
+
+            if (result) {
+              const { x, y, width, height } = result.detection.box;
+              const happy = result.expressions.happy;
+              ctx.beginPath();
+              ctx.lineWidth = 4;
+              ctx.strokeStyle = happy > 0.7 ? "lime" : "red";
+              ctx.rect(x, y - height * 0.15, width, height);
+              ctx.stroke();
+              smiling = happy > 0.7;
+
+              // --- BLINK DETECTION ---
+              const leftEye = result.landmarks.getLeftEye();
+              const rightEye = result.landmarks.getRightEye();
+              const leftEAR = getEAR(leftEye);
+              const rightEAR = getEAR(rightEye);
+
+              // Deteksi kedipan: EAR turun drastis lalu naik lagi
+              // Lebih longgar, cukup salah satu mata kedip
+              if (
+                (prevLeftEAR > 0.21 && leftEAR < 0.17) ||
+                (prevRightEAR > 0.21 && rightEAR < 0.17)
+              ) {
+                hasBlinked = true;
+              }
+              prevLeftEAR = leftEAR;
+              prevRightEAR = rightEAR;
+            } else {
+              smiling = false;
+            }
+
+            // Jika tidak ada motion selama 1.5 detik, disable absen
+            if (!motion) {
+              noMotionCount++;
+            } else {
+              noMotionCount = 0;
+            }
+            // Tombol absen aktif hanya jika: tersenyum, ada motion, dan sudah kedip
+            if (noMotionCount > 15 || !hasBlinked) {
+              submitBtn.disabled = true;
+            } else {
+              submitBtn.disabled = false;
+            }
+
+            statusSenyum.textContent = "Senyum: " + (smiling ? "✅" : "❌");
+            statusMotion.textContent = "Motion: " + (motion ? "✅" : "❌");
+            statusBlink.textContent = "Blink: " + (hasBlinked ? "✅" : "❌");
+
+            await new Promise((r) => setTimeout(r, 100));
+          }
+        }
+
+        // Reset status blink saat modal dibuka
+        absenModal.addEventListener("shown.bs.modal", async function () {
+          submitBtn.disabled = true;
+          hasBlinked = false;
+          await loadModels();
+          await startVideo();
+          video.onloadedmetadata = () => {
+            overlay.width = video.videoWidth;
+            overlay.height = video.videoHeight;
+            detectSmile();
+          };
         });
 
-        // Ambil foto manual
-        ambilBtn.onclick = function () {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          canvas.getContext("2d").drawImage(video, 0, 0);
-          let dataURL = canvas.toDataURL("image/jpeg", 0.7); // 0.7 = kualitas 70%
-          fotoInput.value = dataURL;
-          submitBtn.disabled = false;
-          ambilBtn.textContent = "Foto Diambil";
-          ambilBtn.classList.remove("btn-success");
-          ambilBtn.classList.add("btn-secondary");
-        };
+        async function startVideo() {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+          } catch (err) {
+            alert("Tidak bisa mengakses kamera: " + err.message);
+          }
+        }
 
-        // Reset saat modal ditutup
+        // Modal hide: stop webcam & deteksi
         absenModal.addEventListener("hidden.bs.modal", function () {
-          submitBtn.disabled = true;
-          ambilBtn.textContent = "Ambil Foto";
-          ambilBtn.classList.remove("btn-secondary");
-          ambilBtn.classList.add("btn-success");
-          fotoInput.value = "";
+          detecting = false;
           if (stream) {
             stream.getTracks().forEach((track) => track.stop());
             video.srcObject = null;
             stream = null;
           }
+          overlay
+            .getContext("2d")
+            .clearRect(0, 0, overlay.width, overlay.height);
+          submitBtn.disabled = true;
         });
+
+        // Saat submit: ambil foto otomatis
+        document
+          .getElementById("absenForm")
+          .addEventListener("submit", function (e) {
+            const canvas = document.createElement("canvas");
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext("2d").drawImage(video, 0, 0);
+            fotoInput.value = canvas.toDataURL("image/jpeg", 0.7);
+          });
 
         // Slider logic
         const slides = document.querySelectorAll(".slide");
