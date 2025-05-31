@@ -82,7 +82,7 @@
                     style="margin-top: 10px; text-align: center">
                     <span id="status-senyum">Senyum: ❌</span> |
                     <span id="status-motion">Motion: ❌</span> |
-                    <span id="status-blink">Blink: ❌</span>
+                    <span id="status-mouth">Buka Mulut: ❌</span>
                   </div>
                   <input type="hidden" name="foto" id="fotoInput" />
                 </div>
@@ -423,7 +423,7 @@
         const absenModal = document.getElementById("absenModal");
         const statusSenyum = document.getElementById("status-senyum");
         const statusMotion = document.getElementById("status-motion");
-        const statusBlink = document.getElementById("status-blink");
+        const statusMouth = document.getElementById("status-mouth");
         let stream = null;
         let detecting = false;
 
@@ -448,24 +448,14 @@
 
         let lastImageData = null;
         let noMotionCount = 0;
-        let hasBlinked = false;
-
-        function getEAR(eye) {
-          // Eye Aspect Ratio (EAR) untuk deteksi kedipan
-          const a = Math.hypot(eye[1].x - eye[5].x, eye[1].y - eye[5].y);
-          const b = Math.hypot(eye[2].x - eye[4].x, eye[2].y - eye[4].y);
-          const c = Math.hypot(eye[0].x - eye[3].x, eye[0].y - eye[3].y);
-          return (a + b) / (2.0 * c);
-        }
+        let smilingDetected = false;
+        let mouthOpenDetected = false;
 
         async function detectSmile() {
           overlay.width = video.videoWidth;
           overlay.height = video.videoHeight;
           const ctx = overlay.getContext("2d");
           detecting = true;
-          let smiling = false;
-          let prevLeftEAR = 0.3,
-            prevRightEAR = 0.3; // nilai awal
           const options = new faceapi.TinyFaceDetectorOptions({
             inputSize: 320,
             scoreThreshold: 0.3,
@@ -502,34 +492,24 @@
             }
             lastImageData = imageData;
 
+            let smiling = false;
+            let mouthOpen = false;
+
             if (result) {
               const { x, y, width, height } = result.detection.box;
               const happy = result.expressions.happy;
+              const mouth = result.landmarks.getMouth();
+              mouthOpen = Math.abs(mouth[14].y - mouth[18].y) > 18;
               ctx.beginPath();
               ctx.lineWidth = 4;
               ctx.strokeStyle = happy > 0.7 ? "lime" : "red";
-              ctx.rect(x, y - height * 0.15, width, height);
+              ctx.rect(x, y - height * 0.13, width, height);
               ctx.stroke();
               smiling = happy > 0.7;
 
-              // --- BLINK DETECTION ---
-              const leftEye = result.landmarks.getLeftEye();
-              const rightEye = result.landmarks.getRightEye();
-              const leftEAR = getEAR(leftEye);
-              const rightEAR = getEAR(rightEye);
-
-              // Deteksi kedipan: EAR turun drastis lalu naik lagi
-              // Lebih longgar, cukup salah satu mata kedip
-              if (
-                (prevLeftEAR > 0.21 && leftEAR < 0.17) ||
-                (prevRightEAR > 0.21 && rightEAR < 0.17)
-              ) {
-                hasBlinked = true;
-              }
-              prevLeftEAR = leftEAR;
-              prevRightEAR = rightEAR;
-            } else {
-              smiling = false;
+              // Jika terdeteksi senyum/mulut terbuka sekali, set flag true
+              if (smiling) smilingDetected = true;
+              if (mouthOpen) mouthOpenDetected = true;
             }
 
             // Jika tidak ada motion selama 1.5 detik, disable absen
@@ -538,25 +518,28 @@
             } else {
               noMotionCount = 0;
             }
-            // Tombol absen aktif hanya jika: tersenyum, ada motion, dan sudah kedip
-            if (noMotionCount > 15 || !hasBlinked) {
+            // Tombol absen aktif hanya jika: ada motion, sudah pernah senyum, dan sudah pernah buka mulut
+            if (noMotionCount > 15 || !smilingDetected || !mouthOpenDetected) {
               submitBtn.disabled = true;
             } else {
               submitBtn.disabled = false;
             }
 
-            statusSenyum.textContent = "Senyum: " + (smiling ? "✅" : "❌");
+            statusSenyum.textContent =
+              "Senyum: " + (smilingDetected ? "✅" : "❌");
             statusMotion.textContent = "Motion: " + (motion ? "✅" : "❌");
-            statusBlink.textContent = "Blink: " + (hasBlinked ? "✅" : "❌");
+            statusMouth.textContent =
+              "Mulut Terbuka: " + (mouthOpenDetected ? "✅" : "❌");
 
             await new Promise((r) => setTimeout(r, 100));
           }
         }
 
-        // Reset status blink saat modal dibuka
+        // Reset flag saat modal dibuka
         absenModal.addEventListener("shown.bs.modal", async function () {
           submitBtn.disabled = true;
-          hasBlinked = false;
+          smilingDetected = false;
+          mouthOpenDetected = false;
           await loadModels();
           await startVideo();
           video.onloadedmetadata = () => {
