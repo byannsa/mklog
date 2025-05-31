@@ -84,6 +84,13 @@
                     <span id="status-motion">Motion: ❌</span> |
                     <span id="status-mouth">Buka Mulut: ❌</span>
                   </div>
+                  <div
+                    id="challenge"
+                    style="
+                      margin: 10px 0;
+                      font-weight: bold;
+                      color: #2c3e50;
+                    "></div>
                   <input type="hidden" name="foto" id="fotoInput" />
                 </div>
                 <div class="col-md-6">
@@ -427,7 +434,19 @@
         let stream = null;
         let detecting = false;
 
-        // Load face-api.js models
+        // Urutan challenge: senyum lalu buka mulut
+        const challenges = ["smile", "open_mouth"];
+        let challengeIndex = 0;
+        let challengePassed = false;
+        let lastImageData = null;
+        let noMotionCount = 0;
+
+        function updateChallengeText() {
+          const challenge = challenges[challengeIndex];
+          document.getElementById("challenge").textContent =
+            challenge === "smile" ? "Senyum sekarang!" : "Buka mulut sekarang!";
+        }
+
         async function loadModels() {
           await faceapi.nets.tinyFaceDetector.loadFromUri(
             "https://justadudewhohacks.github.io/face-api.js/models"
@@ -440,22 +459,19 @@
           );
         }
 
-        // Start webcam
         async function startVideo() {
           stream = await navigator.mediaDevices.getUserMedia({ video: true });
           video.srcObject = stream;
         }
-
-        let lastImageData = null;
-        let noMotionCount = 0;
-        let smilingDetected = false;
-        let mouthOpenDetected = false;
 
         async function detectSmile() {
           overlay.width = video.videoWidth;
           overlay.height = video.videoHeight;
           const ctx = overlay.getContext("2d");
           detecting = true;
+          let smilingDetected = false;
+          let mouthOpenDetected = false;
+
           const options = new faceapi.TinyFaceDetectorOptions({
             inputSize: 320,
             scoreThreshold: 0.3,
@@ -507,9 +523,20 @@
               ctx.stroke();
               smiling = happy > 0.7;
 
-              // Jika terdeteksi senyum/mulut terbuka sekali, set flag true
-              if (smiling) smilingDetected = true;
-              if (mouthOpen) mouthOpenDetected = true;
+              // Challenge berurutan
+              if (challengeIndex === 0 && smiling) {
+                smilingDetected = true;
+                challengeIndex = 1;
+                updateChallengeText();
+              } else if (challengeIndex === 1 && mouthOpen) {
+                mouthOpenDetected = true;
+                challengePassed = true;
+              }
+            }
+
+            if (challengePassed) {
+              document.getElementById("challenge").textContent =
+                "✅ Challenge berhasil!";
             }
 
             // Jika tidak ada motion selama 1.5 detik, disable absen
@@ -518,18 +545,19 @@
             } else {
               noMotionCount = 0;
             }
-            // Tombol absen aktif hanya jika: ada motion, sudah pernah senyum, dan sudah pernah buka mulut
-            if (noMotionCount > 15 || !smilingDetected || !mouthOpenDetected) {
+            // Tombol absen aktif hanya jika: motion & challenge selesai
+            if (noMotionCount > 15 || !challengePassed) {
               submitBtn.disabled = true;
             } else {
               submitBtn.disabled = false;
             }
 
+            // Update indikator
             statusSenyum.textContent =
-              "Senyum: " + (smilingDetected ? "✅" : "❌");
+              "Senyum: " + (challengeIndex > 0 ? "✅" : "❌");
             statusMotion.textContent = "Motion: " + (motion ? "✅" : "❌");
             statusMouth.textContent =
-              "Mulut Terbuka: " + (mouthOpenDetected ? "✅" : "❌");
+              "Mulut Terbuka: " + (challengePassed ? "✅" : "❌");
 
             await new Promise((r) => setTimeout(r, 100));
           }
@@ -538,8 +566,10 @@
         // Reset flag saat modal dibuka
         absenModal.addEventListener("shown.bs.modal", async function () {
           submitBtn.disabled = true;
-          smilingDetected = false;
-          mouthOpenDetected = false;
+          challengeIndex = 0;
+          challengePassed = false;
+          lastImageData = null;
+          updateChallengeText();
           await loadModels();
           await startVideo();
           video.onloadedmetadata = () => {
@@ -548,15 +578,6 @@
             detectSmile();
           };
         });
-
-        async function startVideo() {
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            video.srcObject = stream;
-          } catch (err) {
-            alert("Tidak bisa mengakses kamera: " + err.message);
-          }
-        }
 
         // Modal hide: stop webcam & deteksi
         absenModal.addEventListener("hidden.bs.modal", function () {

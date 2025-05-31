@@ -79,11 +79,12 @@
         </div>
         <div>
           <span class="username me-3">Halo, {{ username }}</span>
-          <a
-            href="{{ url_for('guru_dashboard') }}"
-            class="btn btn-outline-dark btn-custom me-2"
-            >Kembali</a
-          >
+          {% if session['role'] == 'admin' %}
+<a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-dark btn-custom me-2">Kembali</a>
+{% elif session['role'] == 'guru' %}
+<a href="{{ url_for('guru_dashboard') }}" class="btn btn-outline-dark btn-custom me-2">Kembali</a>
+{% elif session['role'] == 'siswa' %}
+{% endif %}
           <!-- Tambahkan export jika sudah ada route-nya -->
           <a
             href="{{ url_for('export_excel') }}"
@@ -114,17 +115,18 @@
             type="hidden"
             name="old_id"
             value="{{ editData.id if editData else 0 }}" />
-          <div class="col-md-2">
-            <label for="id" class="form-label">ID</label>
-            <input
-              type="number"
-              name="id"
-              id="id"
-              class="form-control"
-              required
-              value="{{ editData.id if editData else '' }}"
-              min="1" />
-          </div>
+          {% if editData %}
+<div class="col-md-2">
+  <label for="id" class="form-label">ID</label>
+  <input
+    type="number"
+    name="id"
+    id="id"
+    class="form-control"
+    value="{{ editData.id }}"
+    readonly />
+</div>
+{% endif %}
           <div class="col-md-4">
             <label for="nama" class="form-label">Nama</label>
             <input
@@ -165,6 +167,20 @@
               required
               value="{{ editData.waktu if editData else '' }}" />
           </div>
+          <div class="col-md-3">
+             <label for="keterangan" class="form-label">Keterangan</label>
+                <select
+                  name="keterangan"
+                  id="keterangan"
+                  class="form-control"
+                  required>
+                  <option value="">-- Pilih Keterangan --</option>
+                  <option value="Hadir" {% if editData and editData.keterangan == 'Hadir' %}selected{% endif %}>Hadir</option>
+                  <option value="Izin" {% if editData and editData.keterangan == 'Izin' %}selected{% endif %}>Izin</option>
+                  <option value="Sakit" {% if editData and editData.keterangan == 'Sakit' %}selected{% endif %}>Sakit</option>
+                  <option value="Alpa" {% if editData and editData.keterangan == 'Alpa' %}selected{% endif %}>Alpa</option>
+                </select>
+            </div>
           {% if editData and editData.foto %}
           <div class="col-md-4">
             <label class="form-label">Foto</label><br />
@@ -243,72 +259,67 @@
               </caption>
               <thead>
                 <tr>
-                  <th>ID</th>
+                  <th>NO</th>
                   <th>Foto</th>
                   <th>Nama</th>
                   <th>Kelas</th>
                   <th>Tanggal</th>
                   <th>Waktu</th>
+                  <th>Keterangan</th>
                   <th>Aksi</th>
                 </tr>
               </thead>
-              <tbody>
-                {% if absensi %} {% for row in absensi %}
-                <tr>
-                  <td>{{ row.id }}</td>
-                  <td>
-                    {% if row.foto %}
-                    <img
-                      src="{{ url_for('static', filename=row.foto) }}"
-                      alt="Foto {{ row.nama }}"
-                      class="img-thumbnail"
-                      width="90" />
-                    {% else %}
-                    <svg
-                      class="profile-img"
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 64 64"
-                      fill="none"
-                      stroke="#000"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round">
-                      <circle cx="32" cy="32" r="30" fill="#fff" />
-                      <circle cx="20" cy="24" r="5" fill="#000" />
-                      <circle cx="44" cy="24" r="5" fill="#000" />
-                      <path
-                        d="M20 44c4 4 20 4 20 0"
-                        stroke="#000"
-                        stroke-width="3" />
-                    </svg>
-                    {% endif %}
-                  </td>
-                  <td>{{ row.nama }}</td>
-                  <td>{{ row.kelas }}</td>
-                  <td>{{ row.tanggal }}</td>
-                  <td>{{ row.waktu }}</td>
-                  <td>
-                    <a
-                      href="{{ url_for('data_absensi', edit=row.id) }}"
-                      class="btn btn-sm btn-warning"
-                      >Edit</a
-                    >
-                    <a
-                      href="{{ url_for('data_absensi', delete=row.id) }}"
-                      class="btn btn-sm btn-danger"
-                      onclick="return confirm('Yakin ingin menghapus data ini?')"
-                      >Hapus</a
-                    >
-                  </td>
-                </tr>
-                {% endfor %} {% else %}
-                <tr>
-                  <td colspan="7" class="text-center py-4">
-                    Belum ada data absensi.
-                  </td>
-                </tr>
-                {% endif %}
-              </tbody>
+             <tbody>
+  {% if absensi %}
+    {% for row in absensi %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td>
+        {% if row.foto %}
+        <img
+          src="{{ url_for('static', filename=row.foto) }}"
+          alt="Foto {{ row.nama }}"
+          class="img-thumbnail"
+          width="90" />
+        {% else %}
+        <svg
+          class="profile-img"
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 64 64"
+          fill="none"
+          stroke="#000"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round">
+          <circle cx="32" cy="32" r="30" fill="#fff" />
+          <circle cx="20" cy="24" r="5" fill="#000" />
+          <circle cx="44" cy="24" r="5" fill="#000" />
+          <path
+            d="M20 44c4 4 20 4 20 0"
+            stroke="#000"
+            stroke-width="3" />
+        </svg>
+        {% endif %}
+      </td>
+      <td>{{ row.nama }}</td>
+      <td>{{ row.kelas }}</td>
+      <td>{{ row.tanggal }}</td>
+      <td>{{ row.waktu }}</td>
+      <td>{{ row.keterangan }}</td>
+      <td>
+        <a href="{{ url_for('data_absensi', edit=row.id) }}" class="btn btn-sm btn-warning">Edit</a>
+        <a href="{{ url_for('data_absensi', delete=row.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus data ini?')">Hapus</a>
+      </td>
+    </tr>
+    {% endfor %}
+  {% else %}
+    <tr>
+      <td colspan="8" class="text-center py-4">
+        Belum ada data absensi.
+      </td>
+    </tr>
+  {% endif %}
+</tbody>
             </table>
           </div>
         </div>

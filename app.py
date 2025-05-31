@@ -267,6 +267,7 @@ def delete_user(username):
     return redirect(url_for('admin_dashboard'))
 
 
+# filepath: [app.py](http://_vscodecontentref_/6)
 @app.route('/data_absensi', methods=['GET', 'POST'])
 def data_absensi():
     if not session.get('logged_in'):
@@ -283,38 +284,30 @@ def data_absensi():
         kelas = request.form.get('kelas', '')
         tanggal = request.form.get('tanggal', '')
         waktu = request.form.get('waktu', '')
+        keterangan = request.form.get('keterangan', '')
 
-        # Validasi sederhana
-        if new_id > 0 and nama and tanggal and waktu:
-            # Cek apakah new_id sudah ada di database (kecuali jika sama dengan old_id)
-            if new_id != old_id:
-                cursor.execute("SELECT id FROM absensi WHERE id=%s", (new_id,))
-                if cursor.fetchone():
-                    cursor.close()
-                    conn.close()
-                    return "<script>alert('ID sudah digunakan, silakan pilih ID lain.');window.history.back();</script>"
-
-            # Ambil path foto dari database absensi berdasarkan ID
-            fotoPath = ''
+        # Ambil path foto jika ada
+        fotoPath = ''
+        if new_id > 0:
             cursor.execute("SELECT foto FROM absensi WHERE id=%s", (new_id,))
             fotoRow = cursor.fetchone()
             if fotoRow:
                 fotoPath = fotoRow['foto']
 
-            if old_id > 0:
-                # Update data
-                cursor.execute(
-                    "UPDATE absensi SET id=%s, nama=%s, kelas=%s, tanggal=%s, waktu=%s, foto=%s WHERE id=%s",
-                    (new_id, nama, kelas, tanggal, waktu, fotoPath, old_id)
-                )
-                conn.commit()
-            else:
-                # Insert data baru
-                cursor.execute(
-                    "INSERT INTO absensi (id, nama, kelas, tanggal, waktu, foto) VALUES (%s, %s, %s, %s, %s, %s)",
-                    (new_id, nama, kelas, tanggal, waktu, fotoPath)
-                )
-                conn.commit()
+        if old_id > 0:
+            # Update data
+            cursor.execute(
+                "UPDATE absensi SET nama=%s, kelas=%s, tanggal=%s, waktu=%s, keterangan=%s, foto=%s WHERE id=%s",
+                (nama, kelas, tanggal, waktu, keterangan, fotoPath, old_id)
+            )
+            conn.commit()
+        else:
+            # Insert data baru (tanpa id, biar auto increment)
+            cursor.execute(
+                "INSERT INTO absensi (nama, kelas, tanggal, waktu, keterangan, foto) VALUES (%s, %s, %s, %s, %s, %s)",
+                (nama, kelas, tanggal, waktu, keterangan, fotoPath)
+            )
+            conn.commit()
         return redirect(url_for('data_absensi'))
 
     # --- Proses Hapus ---
@@ -322,11 +315,6 @@ def data_absensi():
     if delete_id:
         cursor.execute("DELETE FROM absensi WHERE id=%s", (delete_id,))
         conn.commit()
-        # Hapus file foto jika ada (opsional, jika simpan path file)
-        # import os
-        # foto_path = f"static/uploads/{delete_id}.jpg"
-        # if os.path.exists(foto_path):
-        #     os.remove(foto_path)
         return redirect(url_for('data_absensi'))
 
     # --- Ambil data untuk edit ---
@@ -443,9 +431,12 @@ def data_pengguna():
     if edit_id:
         cursor.execute("SELECT * FROM pengguna WHERE id=%s", (edit_id,))
         editData = cursor.fetchone()
-
-    # --- Ambil semua data pengguna ---
-    cursor.execute("SELECT id, nama, kelas FROM pengguna ORDER BY nama ASC")
+        
+    filter_kelas = request.args.get('filter_kelas', '')
+    if filter_kelas:
+        cursor.execute("SELECT id, nama, kelas FROM pengguna WHERE kelas LIKE %s ORDER BY nama ASC", (f"%{filter_kelas}%",))
+    else:
+        cursor.execute("SELECT id, nama, kelas FROM pengguna ORDER BY nama ASC")
     users = cursor.fetchall()
 
     cursor.close()
@@ -456,7 +447,8 @@ def data_pengguna():
         username=session['username'],
         users=users,
         editData=editData,
-        pesan_sukses=pesan_sukses
+        pesan_sukses=pesan_sukses,
+        filter_kelas=filter_kelas
     )
 
 @app.route('/guru')

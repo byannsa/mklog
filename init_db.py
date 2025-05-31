@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS absensi (
     kelas VARCHAR(50) NOT NULL,
     tanggal DATE NOT NULL,
     waktu TIME NOT NULL,
+    keterangan ENUM('hadir', 'izin', 'sakit', 'alpha') NOT NULL,
     foto VARCHAR(255)
 )
 """)
