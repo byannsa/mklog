@@ -6,17 +6,22 @@ import time
 import mysql.connector
 import bcrypt
 from fpdf import FPDF
-import os
+import base64, json, uuid, os
 import datetime
 from werkzeug.utils import secure_filename
 import base64
+import numpy as np
+from PIL import Image
+from io import BytesIO
+import face_recognition
+
 
 app = Flask(__name__)
 app.secret_key = 'rahasia' 
 
 # Konfigurasi database
 db_config = {
-    "host": "localhost",
+"host": "localhost",
     "user": "root",
     "password": "",
     "database": "absensi_db"
@@ -267,6 +272,80 @@ def delete_user(username):
     return redirect(url_for('admin_dashboard'))
 
 
+@app.route('/daftar_wajah', methods=['POST'])
+def daftar_wajah():
+    if not session.get('logged_in') or session.get('role') != 'siswa':
+        return redirect(url_for('login'))
+
+    import uuid
+    encoding_wajah = request.form.get('encoding_wajah')
+    nama = session.get('username')
+    kelas = session.get('kelas')
+
+    if not encoding_wajah:
+        return "<script>alert('Data wajah tidak ditemukan!');window.history.back();</script>"
+
+    print("encoding_wajah (awal):", encoding_wajah[:100])
+
+    try:
+        # Decode base64
+        header, encoded = encoding_wajah.split(",", 1)
+        img_bytes = base64.b64decode(encoded)
+
+        # Load image dengan PIL dan pastikan dalam RGB
+        from PIL import Image
+        import io
+        img = Image.open(BytesIO(img_bytes)).convert("RGB")
+        img_np = np.array(img)
+        img_np = np.ascontiguousarray(img_np, dtype=np.uint8)
+
+        # Debug info
+        print("img_np.shape:", img_np.shape)
+        print("img_np.dtype:", img_np.dtype)
+        print("img_np.flags['C_CONTIGUOUS']:", img_np.flags['C_CONTIGUOUS'])
+
+        # Pastikan format benar (tinggi, lebar, 3 channel)
+        if len(img_np.shape) != 3 or img_np.shape[2] != 3:
+            raise Exception(f"Channel gambar bukan 3 (RGB), tapi {img_np.shape[2]}")
+
+        # Pastikan format numpy array dalam bentuk C-contiguous (opsional tapi aman)
+        img_np = np.ascontiguousarray(img_np)
+
+        # Panggil face_recognition (format sudah RGB)
+        face_locations = face_recognition.face_locations(img_np)
+        print("face_locations:", face_locations)
+        encodings = face_recognition.face_encodings(img_np, face_locations)
+
+        if not encodings:
+            raise Exception("Tidak ada wajah terdeteksi!")
+
+        vector = encodings[0]
+        vector_str = json.dumps(vector.tolist())
+
+    except Exception as e:
+        print("Error daftar wajah:", e)
+        return "<script>alert('Gagal memproses wajah! Pastikan hanya satu wajah terlihat.');window.history.back();</script>"
+
+    # Simpan ke database
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE pengguna SET encoding_wajah=%s WHERE nama=%s AND kelas=%s",
+            (vector_str, nama, kelas)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as db_err:
+        print("Database error:", db_err)
+        return "<script>alert('Gagal menyimpan ke database!');window.history.back();</script>"
+
+    return "<script>alert('Wajah berhasil didaftarkan/diupdate!');window.location.href='" + url_for('siswa_dashboard') + "';</script>"
+
+
+
+
 # filepath: [app.py](http://_vscodecontentref_/6)
 @app.route('/data_absensi', methods=['GET', 'POST'])
 def data_absensi():
@@ -461,7 +540,14 @@ def guru_dashboard():
 def siswa_dashboard():
     if not session.get('logged_in') or session.get('role') != 'siswa':
         return redirect(url_for('login'))
-    return render_template('siswa_dashboard.html', nama=session['username'], kelas=session.get('kelas'))
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT encoding_wajah FROM pengguna WHERE nama=%s AND kelas=%s", (session['username'], session.get('kelas')))
+    data = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    wajah_terdaftar = bool(data and data['encoding_wajah'])
+    return render_template('siswa_dashboard.html', nama=session['username'], kelas=session.get('kelas'), wajah_terdaftar=wajah_terdaftar)
 
 @app.route('/')
 def home():
@@ -481,43 +567,106 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
+
 @app.route('/absen_siswa', methods=['POST'])
 def absen_siswa():
     if not session.get('logged_in') or session.get('role') != 'siswa':
         return redirect(url_for('login'))
 
+    from datetime import datetime
+
+    encoding_wajah_absen = request.form.get('encoding_wajah_absen')
     nama = session['username']
     kelas = session.get('kelas')
-    waktu = datetime.datetime.now().strftime('%H:%M:%S')
-    tanggal = datetime.datetime.now().strftime('%Y-%m-%d')
 
-    foto_data = request.form.get('foto')
-    if not foto_data:
-        return "<script>alert('Foto wajib diambil!');window.history.back();</script>"
+    # Ambil tanggal & waktu sekarang (untuk konsistensi file dan database)
+    tanggal = datetime.now().strftime("%Y-%m-%d")
+    waktu = datetime.now().strftime("%H:%M:%S")
 
-    # Simpan foto base64 ke file
-    header, encoded = foto_data.split(",", 1)
-    img_bytes = base64.b64decode(encoded)
-    filename = secure_filename(f"{nama}_{kelas}_{tanggal}_{waktu.replace(':','-')}.jpg")
-    foto_path = f"bukti_absen/{filename}"  # <-- simpan ke bukti_absen
-    save_path = os.path.join('static', foto_path)
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    with open(save_path, "wb") as f:
-        f.write(img_bytes)
+    # Simpan data ke session untuk halaman sukses
+    session['absen_nama'] = nama
+    session['absen_kelas'] = kelas
+    session['absen_tanggal'] = tanggal
+    session['absen_waktu'] = waktu
 
-    # Simpan ke database absensi
+    if not encoding_wajah_absen:
+        return "<script>alert('Data wajah absen tidak ditemukan!');window.history.back();</script>"
+
+    # Ambil encoding vector dari database
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT encoding_wajah FROM pengguna WHERE nama=%s AND kelas=%s", (nama, kelas))
+    data = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if not data or not data['encoding_wajah']:
+        return "<script>alert('Wajah belum terdaftar!');window.history.back();</script>"
+
+    try:
+        # Ambil vector dari database
+        vector_db = np.array(json.loads(data['encoding_wajah']))
+
+        # Ambil vector dari gambar absen
+        if "," not in encoding_wajah_absen:
+            raise Exception("Format data wajah absen tidak valid")
+        header, encoded = encoding_wajah_absen.split(",", 1)
+        img_bytes = base64.b64decode(encoded)
+        img = Image.open(BytesIO(img_bytes)).convert("RGB")
+        img_np = np.array(img)
+        img_np = np.ascontiguousarray(img_np, dtype=np.uint8)
+        encodings_absen = face_recognition.face_encodings(img_np)
+        if not encodings_absen:
+            raise Exception("Wajah absen tidak terdeteksi")
+        vector_absen = encodings_absen[0]
+
+        # Bandingkan vector
+        match = face_recognition.compare_faces([vector_db], vector_absen, tolerance=0.5)[0]
+    except Exception as e:
+        print("Error absen:", e)
+        return "<script>alert('Gagal memproses wajah: {}');window.history.back();</script>".format(str(e).replace("'", "\\'"))
+
+    if not match:
+        return "<script>alert('Wajah tidak cocok!');window.history.back();</script>"
+
+    # Simpan file foto bukti absen
+    foto_folder = os.path.join('static', 'bukti_absen')
+    os.makedirs(foto_folder, exist_ok=True)
+    filename = f"{nama}_{kelas}_{tanggal}_{waktu.replace(':', '-')}.jpg".replace(' ', '_')
+    foto_path = os.path.join(foto_folder, filename)
+    img.save(foto_path)
+
+    # Simpan path relatif ke database (agar bisa diakses dari /static/bukti_absen/...)
+    foto_db = os.path.join('bukti_absen', filename).replace("\\", "/")
+
+    # Simpan data absen ke database
+    keterangan = request.form.get('keterangan', 'Hadir')
+    if not keterangan:
+        keterangan = 'Hadir'
+    if keterangan not in ['Hadir', 'Sakit', 'Izin', 'Alfa']:
+        return "<script>alert('Keterangan tidak valid!');window.history.back();</script>"
+    if not nama or not kelas or not tanggal or not waktu:
+        return "<script>alert('Data absen tidak lengkap!');window.history.back();</script>"
+
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO absensi (nama, kelas, tanggal, waktu, foto) VALUES (%s, %s, %s, %s, %s)",
-        (nama, kelas, tanggal, waktu, foto_path)
+        "INSERT INTO absensi (nama, kelas, tanggal, waktu, keterangan, foto) VALUES (%s, %s, %s, %s, %s, %s)",
+        (nama, kelas, tanggal, waktu, keterangan, foto_db)
     )
     conn.commit()
     cursor.close()
     conn.close()
 
-    return render_template('absen_sukses.html', nama=nama, kelas=kelas, tanggal=tanggal, waktu=waktu)
+    return redirect(url_for('absen_sukses'))
 
+@app.route('/absen_sukses')
+def absen_sukses():
+    nama = session.pop('absen_nama', '')
+    kelas = session.pop('absen_kelas', '')
+    tanggal = session.pop('absen_tanggal', '')
+    waktu = session.pop('absen_waktu', '')
+    return render_template('absen_sukses.html', nama=nama, kelas=kelas, tanggal=tanggal, waktu=waktu)
 
 @app.route('/video_feed')
 def video_feed():
@@ -532,4 +681,6 @@ def start_scan():
     return "Scan started"
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)
+
+

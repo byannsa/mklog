@@ -80,12 +80,16 @@
         <div>
           <span class="username me-3">Halo, {{ username }}</span>
           {% if session['role'] == 'admin' %}
-<a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-dark btn-custom me-2">Kembali</a>
-{% elif session['role'] == 'guru' %}
-<a href="{{ url_for('guru_dashboard') }}" class="btn btn-outline-dark btn-custom me-2">Kembali</a>
-{% elif session['role'] == 'siswa' %}
-{% endif %}
+          <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-dark btn-custom me-2">Kembali</a>
+          {% elif session['role'] == 'guru' %}
+          <a href="{{ url_for('guru_dashboard') }}" class="btn btn-outline-dark btn-custom me-2">Kembali</a>
+          {% endif %}
           <!-- Tambahkan export jika sudah ada route-nya -->
+
+          <!-- FORM TAMBAH / EDIT -->
+          <a href="{{ url_for('data_pengguna') }}" class="btn btn-dark btn-custom me-2"
+          >Tambah User Siswa</a
+          >
           <a
             href="{{ url_for('export_excel') }}"
             target="_blank"
@@ -101,10 +105,7 @@
         </div>
       </div>
 
-      <!-- FORM TAMBAH / EDIT -->
-      <a href="{{ url_for('data_pengguna') }}" class="btn btn-dark btn-custom"
-        >Tambah Data Siswa</a
-      >
+
       <div class="card form-section p-4">
         <h5>{{ editData and 'Edit Data Absensi' or 'Tambah Data Absensi' }}</h5>
         <form

@@ -23,21 +23,85 @@
             class="logo" />
           <h1></h1>
         </div>
-        <div class="header-right">
+        <div
+          class="header-right d-flex align-items-center justify-content-end gap-3">
           <span class="username me-3">Halo, {{ nama }}</span>
-          <a href="{{ url_for('logout') }}" class="btn btn-logout btn-sm"
-            >Logout</a
-          >
+          <button
+            class="btn btn-success"
+            data-bs-toggle="modal"
+            data-bs-target="#absenModal">
+            Absen Sekarang
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            id="btnDaftarWajah"
+            data-bs-toggle="modal"
+            data-bs-target="#modalDaftarWajah">
+            Daftar Wajah
+          </button>
+          <a href="{{ url_for('logout') }}" class="btn btn-dark">Logout</a>
         </div>
       </header>
 
-      <!-- Tombol untuk buka modal -->
-      <button
-        class="btn btn-success mb-3"
-        data-bs-toggle="modal"
-        data-bs-target="#absenModal">
-        Absen Sekarang
-      </button>
+      <!-- Modal Daftar Wajah -->
+      <div
+        class="modal fade"
+        id="modalDaftarWajah"
+        tabindex="-1"
+        aria-labelledby="modalDaftarWajahLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+          <div class="modal-content">
+            <form
+              id="formDaftarWajah"
+              action="{{ url_for('daftar_wajah') }}"
+              method="POST">
+              <div class="modal-header">
+                <h5 class="modal-title" id="modalDaftarWajahLabel">
+                  Daftar/Update Wajah
+                </h5>
+                <button
+                  type="button"
+                  class="btn-close"
+                  data-bs-dismiss="modal"
+                  aria-label="Tutup"></button>
+              </div>
+              <div class="modal-body">
+                <video
+                  id="videoDaftar"
+                  width="100%"
+                  height="auto"
+                  autoplay
+                  style="
+                    border-radius: 12px;
+                    background: #222;
+                    display: block;
+                  "></video>
+                <canvas
+                  id="overlayDaftar"
+                  style="
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    pointer-events: none;
+                  "></canvas>
+                <input
+                  type="hidden"
+                  name="encoding_wajah"
+                  id="encodingWajahInput" />
+              </div>
+              <div class="modal-footer">
+                <button type="submit" class="btn btn-primary w-100">
+                  Simpan Wajah
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
 
       <!-- Modal Formulir Absensi -->
       <div
@@ -92,6 +156,10 @@
                       color: #2c3e50;
                     "></div>
                   <input type="hidden" name="foto" id="fotoInput" />
+                  <input
+                    type="hidden"
+                    name="encoding_wajah_absen"
+                    id="encodingWajahAbsenInput" />
                 </div>
                 <div class="col-md-6">
                   <div class="mb-3">
@@ -110,12 +178,14 @@
                       value="{{ kelas }}"
                       readonly />
                   </div>
-                  <button
-                    type="submit"
-                    class="btn btn-dark w-100"
-                    id="submitAbsen">
-                    Absen Sekarang
-                  </button>
+                  <div class="d-flex gap-2">
+                    <button
+                      type="submit"
+                      class="btn btn-dark flex-fill"
+                      id="submitAbsen">
+                      Absen Sekarang
+                    </button>
+                  </div>
                 </div>
               </div>
             </form>
@@ -123,8 +193,27 @@
         </div>
       </div>
 
+      <!-- Gambar Mitra -->
+      <div
+        class="mt-2 text-center"
+        style="padding-left: 10px; padding-right: 10px">
+        <h5 class="mb-4">Future Attendance, Accurate Without Cheating</h5>
+        <img
+          src="{{ url_for('static', filename='assets/mitra.png') }}"
+          alt="Mitra MK LOG"
+          class="mitra-img" />
+      </div>
+      <style>
+        .mitra-img {
+          width: 100%;
+          height: auto;
+          display: block;
+          margin: 0 auto;
+        }
+      </style>
+
       <!-- Slider -->
-      <div class="slider" aria-label="Informasi Slider">
+      <div class="slider mt-4" aria-label="Informasi Slider">
         <div class="slides position-relative" style="height: 110px">
           <div class="slide active">
             <h2>Selamat Datang di MK LOG</h2>
@@ -150,25 +239,6 @@
           <button id="nextBtn" aria-label="Slide berikutnya"></button>
         </div>
       </div>
-
-      <!-- Gambar Mitra -->
-      <div
-        class="mt-5 text-center"
-        style="padding-left: 10px; padding-right: 10px">
-        <h5 class="mb-4">Future Attendance, Accurate Without Cheating</h5>
-        <img
-          src="{{ url_for('static', filename='assets/mitra.png') }}"
-          alt="Mitra MK LOG"
-          class="mitra-img" />
-      </div>
-      <style>
-        .mitra-img {
-          width: 100%;
-          height: auto;
-          display: block;
-          margin: 0 auto;
-        }
-      </style>
 
       <!-- Tentang MK LOG -->
       <section class="tentang-kami my-5 p-4 bg-light rounded">
@@ -423,6 +493,67 @@
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
       <script src="https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js"></script>
       <script>
+        document.addEventListener("DOMContentLoaded", function () {
+          var modal = document.getElementById("modalDaftarWajah");
+          var video = document.getElementById("videoDaftar");
+          var stream = null;
+
+          // Saat modal dibuka, aktifkan kamera
+          modal.addEventListener("shown.bs.modal", function () {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+              navigator.mediaDevices
+                .getUserMedia({ video: true })
+                .then(function (s) {
+                  stream = s;
+                  video.srcObject = stream;
+                  video.play();
+                })
+                .catch(function (err) {
+                  alert("Tidak dapat mengakses kamera: " + err);
+                });
+            } else {
+              alert("Browser tidak mendukung kamera!");
+            }
+          });
+
+          // Saat modal ditutup, matikan kamera
+          modal.addEventListener("hidden.bs.modal", function () {
+            if (stream) {
+              stream.getTracks().forEach((track) => track.stop());
+              video.srcObject = null;
+            }
+          });
+        });
+
+        document.addEventListener("DOMContentLoaded", function () {
+          const form = document.getElementById("formDaftarWajah");
+          const video = document.getElementById("videoDaftar");
+          const encodingInput = document.getElementById("encodingWajahInput");
+
+          form.addEventListener("submit", function (e) {
+            if (video.videoWidth === 0 || video.videoHeight === 0) {
+              e.preventDefault();
+              alert(
+                "Kamera belum siap. Silakan tunggu beberapa detik lalu coba lagi."
+              );
+              return false;
+            }
+            const canvas = document.createElement("canvas");
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext("2d").drawImage(video, 0, 0);
+            const dataURL = canvas.toDataURL("image/jpeg", 0.8);
+
+            // Validasi base64
+            if (!dataURL || !dataURL.startsWith("data:image/jpeg")) {
+              e.preventDefault();
+              alert("Gagal mengambil gambar dari kamera. Silakan ulangi.");
+              return false;
+            }
+            encodingInput.value = dataURL;
+          });
+        });
+
         const video = document.getElementById("video");
         const overlay = document.getElementById("overlay");
         const fotoInput = document.getElementById("fotoInput");
@@ -594,6 +725,7 @@
         });
 
         // Saat submit: ambil foto otomatis
+        // Saat submit: ambil foto otomatis
         document
           .getElementById("absenForm")
           .addEventListener("submit", function (e) {
@@ -601,7 +733,10 @@
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             canvas.getContext("2d").drawImage(video, 0, 0);
-            fotoInput.value = canvas.toDataURL("image/jpeg", 0.7);
+            const dataURL = canvas.toDataURL("image/jpeg", 0.7);
+            fotoInput.value = dataURL;
+            // Isi encoding wajah absen juga
+            document.getElementById("encodingWajahAbsenInput").value = dataURL;
           });
 
         // Slider logic
