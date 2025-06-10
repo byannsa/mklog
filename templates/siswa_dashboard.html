@@ -26,6 +26,11 @@
         <div
           class="header-right d-flex align-items-center justify-content-end gap-3">
           <span class="username me-3">Halo, {{ nama }}</span>
+          <div class="my-4">
+            <a href="{{ url_for('data_absensi') }}" class="btn btn-primary"
+              >Lihat Data Absensi</a
+            >
+          </div>
           <button
             class="btn btn-success"
             data-bs-toggle="modal"

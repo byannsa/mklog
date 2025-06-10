@@ -1,19 +1,21 @@
 import io
 import csv
-from flask import Flask, render_template, request, redirect, url_for, session, Response
+from flask import Flask, render_template, request, redirect, url_for, session, Response, flash
 import cv2
 import time
 import mysql.connector
 import bcrypt
 from fpdf import FPDF
 import base64, json, uuid, os
-import datetime
+from datetime import datetime
 from werkzeug.utils import secure_filename
 import base64
 import numpy as np
 from PIL import Image
 from io import BytesIO
 import face_recognition
+import json  # tambahkan import ini
+
 
 
 app = Flask(__name__)
@@ -24,7 +26,7 @@ db_config = {
 "host": "localhost",
     "user": "root",
     "password": "",
-    "database": "absensi_db"
+    "database": "absensiadv_db"
 }
 
 # Load Haar Cascade untuk deteksi wajah
@@ -144,44 +146,35 @@ def login():
 
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor(dictionary=True)
-        # Cek di tabel users (admin/guru)
+        
+        # Cek di tabel users (admin/superadmin saja)
         cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
         user = cursor.fetchone()
+
+        cursor.close()
+        conn.close()
 
         if user and bcrypt.checkpw(password, user['password'].encode('utf-8')):
             session['logged_in'] = True
             session['username'] = user['username']
             session['role'] = user['role']
-            cursor.close()
-            conn.close()
+
             # Redirect sesuai role
-            if user['role'] == 'admin':
+            if user['role'] == 'superadmin':
+                return redirect(url_for('superadmin_dashboard'))
+            elif user['role'] == 'admin':
                 return redirect(url_for('admin_dashboard'))
-            elif user['role'] == 'guru':
-                return redirect(url_for('guru_dashboard'))
             else:
                 return redirect(url_for('home'))
         else:
-            # Jika tidak ditemukan di users, cek di pengguna (siswa)
-            cursor.execute("SELECT * FROM pengguna WHERE nama=%s", (username,))
-            siswa = cursor.fetchone()
-            cursor.close()
-            conn.close()
-            if siswa and bcrypt.checkpw(password, siswa['password'].encode('utf-8')):
-                session['logged_in'] = True
-                session['username'] = siswa['nama']
-                session['role'] = 'siswa'
-                session['kelas'] = siswa['kelas']
-                session['id'] = siswa['id']
-                return redirect(url_for('siswa_dashboard'))
-            else:
-                error = "Username/Nama atau password salah!"
+            error = "Username atau password salah!"
 
     return render_template('login.html', error=error)
 
-@app.route('/admin', methods=['GET', 'POST'])
-def admin_dashboard():
-    if not session.get('logged_in') or session.get('role') not in ['guru', 'admin']:
+
+@app.route('/superadmin', methods=['GET', 'POST'])
+def superadmin_dashboard():
+    if not session.get('logged_in') or session.get('role') not in ['admin', 'superadmin']:
         return redirect(url_for('login'))
 
     # --- Tambah/Edit User ---
@@ -225,7 +218,7 @@ def admin_dashboard():
             conn.commit()
         cursor.close()
         conn.close()
-        return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('superadmin_dashboard'))
 
     # --- Hapus User ---
     delete_username = request.args.get('delete')
@@ -236,7 +229,7 @@ def admin_dashboard():
         conn.commit()
         cursor.close()
         conn.close()
-        return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('superadmin_dashboard'))
 
     # --- Edit Data User (ambil data untuk form) ---
     edit_id = request.args.get('id')
@@ -256,12 +249,12 @@ def admin_dashboard():
     cursor.close()
     conn.close()
 
-    return render_template('admin_dashboard.html', username=session['username'], users=users, edit_user=edit_user)
+    return render_template('superadmin_dashboard.html', username=session['username'], users=users, edit_user=edit_user)
 
 # Route untuk hapus user (opsional, agar url_for('delete_user', ...) bisa dipakai)
 @app.route('/delete_user/<username>')
 def delete_user(username):
-    if not session.get('logged_in') or session.get('role') not in ['guru', 'admin']:
+    if not session.get('logged_in') or session.get('role') not in ['admin', 'superadmin']:
         return redirect(url_for('login'))
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor()
@@ -269,79 +262,8 @@ def delete_user(username):
     conn.commit()
     cursor.close()
     conn.close()
-    return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('superdmin_dashboard'))
 
-
-@app.route('/daftar_wajah', methods=['POST'])
-def daftar_wajah():
-    if not session.get('logged_in') or session.get('role') != 'siswa':
-        return redirect(url_for('login'))
-
-    import uuid
-    encoding_wajah = request.form.get('encoding_wajah')
-    nama = session.get('username')
-    kelas = session.get('kelas')
-
-    if not encoding_wajah:
-        return "<script>alert('Data wajah tidak ditemukan!');window.history.back();</script>"
-
-    print("encoding_wajah (awal):", encoding_wajah[:100])
-
-    try:
-        # Decode base64
-        header, encoded = encoding_wajah.split(",", 1)
-        img_bytes = base64.b64decode(encoded)
-
-        # Load image dengan PIL dan pastikan dalam RGB
-        from PIL import Image
-        import io
-        img = Image.open(BytesIO(img_bytes)).convert("RGB")
-        img_np = np.array(img)
-        img_np = np.ascontiguousarray(img_np, dtype=np.uint8)
-
-        # Debug info
-        print("img_np.shape:", img_np.shape)
-        print("img_np.dtype:", img_np.dtype)
-        print("img_np.flags['C_CONTIGUOUS']:", img_np.flags['C_CONTIGUOUS'])
-
-        # Pastikan format benar (tinggi, lebar, 3 channel)
-        if len(img_np.shape) != 3 or img_np.shape[2] != 3:
-            raise Exception(f"Channel gambar bukan 3 (RGB), tapi {img_np.shape[2]}")
-
-        # Pastikan format numpy array dalam bentuk C-contiguous (opsional tapi aman)
-        img_np = np.ascontiguousarray(img_np)
-
-        # Panggil face_recognition (format sudah RGB)
-        face_locations = face_recognition.face_locations(img_np)
-        print("face_locations:", face_locations)
-        encodings = face_recognition.face_encodings(img_np, face_locations)
-
-        if not encodings:
-            raise Exception("Tidak ada wajah terdeteksi!")
-
-        vector = encodings[0]
-        vector_str = json.dumps(vector.tolist())
-
-    except Exception as e:
-        print("Error daftar wajah:", e)
-        return "<script>alert('Gagal memproses wajah! Pastikan hanya satu wajah terlihat.');window.history.back();</script>"
-
-    # Simpan ke database
-    try:
-        conn = mysql.connector.connect(**db_config)
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE pengguna SET encoding_wajah=%s WHERE nama=%s AND kelas=%s",
-            (vector_str, nama, kelas)
-        )
-        conn.commit()
-        cursor.close()
-        conn.close()
-    except Exception as db_err:
-        print("Database error:", db_err)
-        return "<script>alert('Gagal menyimpan ke database!');window.history.back();</script>"
-
-    return "<script>alert('Wajah berhasil didaftarkan/diupdate!');window.location.href='" + url_for('siswa_dashboard') + "';</script>"
 
 
 
@@ -349,8 +271,13 @@ def daftar_wajah():
 # filepath: [app.py](http://_vscodecontentref_/6)
 @app.route('/data_absensi', methods=['GET', 'POST'])
 def data_absensi():
-    if not session.get('logged_in'):
-        return redirect(url_for('login'))
+    if session.get('role') != 'superadmin' and not session.get('absensi_verified'):
+        flash("Silakan verifikasi password terlebih dahulu.", "warning")
+        if session.get('role') == 'admin':
+            return redirect(url_for('admin_dashboard'))
+        else:
+            return redirect(url_for('login'))
+
 
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor(dictionary=True)
@@ -360,7 +287,8 @@ def data_absensi():
         old_id = int(request.form.get('old_id', 0))
         new_id = int(request.form.get('id', 0))
         nama = request.form.get('nama', '')
-        kelas = request.form.get('kelas', '')
+        jabatan = request.form.get('jabatan', '')
+        divisi = request.form.get('divisi', '')
         tanggal = request.form.get('tanggal', '')
         waktu = request.form.get('waktu', '')
         keterangan = request.form.get('keterangan', '')
@@ -376,15 +304,15 @@ def data_absensi():
         if old_id > 0:
             # Update data
             cursor.execute(
-                "UPDATE absensi SET nama=%s, kelas=%s, tanggal=%s, waktu=%s, keterangan=%s, foto=%s WHERE id=%s",
-                (nama, kelas, tanggal, waktu, keterangan, fotoPath, old_id)
+                "UPDATE absensi SET nama=%s, jabatan=%s, divisi=%s, tanggal=%s, waktu=%s, keterangan=%s, foto=%s WHERE id=%s",
+                (nama, jabatan, divisi, tanggal, waktu, keterangan, fotoPath, old_id)
             )
             conn.commit()
         else:
             # Insert data baru (tanpa id, biar auto increment)
             cursor.execute(
-                "INSERT INTO absensi (nama, kelas, tanggal, waktu, keterangan, foto) VALUES (%s, %s, %s, %s, %s, %s)",
-                (nama, kelas, tanggal, waktu, keterangan, fotoPath)
+                "INSERT INTO absensi (nama, jabatan, divisi, tanggal, waktu, keterangan, foto) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (nama, jabatan, divisi, tanggal, waktu, keterangan, fotoPath)
             )
             conn.commit()
         return redirect(url_for('data_absensi'))
@@ -404,14 +332,14 @@ def data_absensi():
         editData = cursor.fetchone()
 
     # --- Filter ---
-    filter_kelas = request.args.get('filter_kelas', '')
+    filter_divisi = request.args.get('filter_divisi', '')
     filter_tanggal = request.args.get('filter_tanggal', '')
 
     where = []
     params = []
-    if filter_kelas:
-        where.append("kelas LIKE %s")
-        params.append(f"%{filter_kelas}%")
+    if filter_divisi:
+        where.append("divisi LIKE %s")
+        params.append(f"%{filter_divisi}%")
     if filter_tanggal:
         where.append("tanggal = %s")
         params.append(filter_tanggal)
@@ -431,9 +359,48 @@ def data_absensi():
         username=session['username'],
         absensi=absensi_list,
         editData=editData,
-        filter_kelas=filter_kelas,
+        filter_divisi=filter_divisi,
         filter_tanggal=filter_tanggal
     )
+
+
+@app.route('/verify_absensi_password', methods=['POST'])
+def verify_absensi_password():
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+
+    # Ambil password yang diinput
+    password_input = request.form['password'].encode('utf-8')
+    username = session.get('username')
+
+    # Ambil user dari database
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT password, role FROM users WHERE username = %s", (username,))
+    user = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    # Jika user ditemukan dan password cocok
+    if user and bcrypt.checkpw(password_input, user['password'].encode('utf-8')):
+        session['absensi_verified'] = True
+        return redirect(url_for('data_absensi'))
+
+    # Jika user superadmin, lewati verifikasi
+    if user and user['role'] == 'superadmin':
+        return redirect(url_for('data_absensi'))
+
+    # Jika gagal
+    flash("Password salah atau akses ditolak.", "danger")
+
+    # Kembali ke dashboard sesuai role
+    if user and user['role'] == 'superadmin':
+        return redirect(url_for('superadmin_dashboard'))
+    else:
+        return redirect(url_for('admin_dashboard'))
+
+
+
 
 @app.route('/data_pengguna', methods=['GET', 'POST'])
 def data_pengguna():
@@ -448,59 +415,79 @@ def data_pengguna():
 
     # --- Proses Tambah/Edit ---
     if request.method == 'POST':
-        if 'bulk_update' in request.form:
-            # Update massal kelas
-            from_kelas = request.form.get('from_kelas', '')
-            to_kelas = request.form.get('to_kelas', '')
-            if from_kelas and to_kelas:
-                cursor.execute("UPDATE pengguna SET kelas=%s WHERE kelas=%s", (to_kelas, from_kelas))
-                conn.commit()
-                pesan_sukses = f"Berhasil mengubah semua siswa dari kelas <strong>{from_kelas}</strong> ke <strong>{to_kelas}</strong>."
-        else:
-            old_nama = request.form.get('old_nama', '')
-            nama = request.form.get('nama', '')
-            kelas = request.form.get('kelas', '')
-            password = request.form.get('password', '')
+        old_nama = request.form.get('old_nama', '')
+        nama = request.form.get('nama', '')
+        jabatan = request.form.get('jabatan', '')
+        divisi = request.form.get('divisi', '')
+        foto_file = request.files.get('foto')
 
-            if nama and kelas:
-                # Cek nama unik jika ganti nama
-                if nama != old_nama:
-                    cursor.execute("SELECT nama FROM pengguna WHERE nama=%s", (nama,))
-                    if cursor.fetchone():
-                        cursor.close()
-                        conn.close()
-                        return "<script>alert('Nama sudah digunakan.');window.history.back();</script>"
+        if nama and jabatan and divisi:
+            # Cek nama unik jika mengganti nama
+            if nama != old_nama:
+                cursor.execute("SELECT nama FROM pengguna WHERE nama=%s", (nama,))
+                if cursor.fetchone():
+                    cursor.close()
+                    conn.close()
+                    return "<script>alert('Nama sudah digunakan.');window.history.back();</script>"
 
-                if old_nama:
-                    # Edit data
-                    cursor.execute("SELECT * FROM pengguna WHERE nama=%s", (old_nama,))
-                    oldData = cursor.fetchone()
-                    oldKelas = oldData['kelas'] if oldData else ''
-                    finalKelas = kelas if kelas != oldKelas else oldKelas
+            foto_filename = None
+            encoding_json = None
 
-                    if password:
-                        hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode()
-                        cursor.execute("UPDATE pengguna SET nama=%s, kelas=%s, password=%s WHERE nama=%s",
-                                       (nama, finalKelas, hashed, old_nama))
-                    else:
-                        cursor.execute("UPDATE pengguna SET nama=%s, kelas=%s WHERE nama=%s",
-                                       (nama, finalKelas, old_nama))
-                    conn.commit()
+            if foto_file and foto_file.filename != '':
+                # Simpan file foto
+                timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+                filename_secure = secure_filename(foto_file.filename)
+                foto_filename = f"{timestamp}_{filename_secure}"
+                foto_path = os.path.join('static/foto_pengguna', foto_filename)
+                foto_file.save(foto_path)
+
+                # Deteksi dan encoding wajah
+                image = face_recognition.load_image_file(foto_path)
+                encodings = face_recognition.face_encodings(image)
+
+                if encodings:
+                    encoding_np = encodings[0]
+                    encoding_json = json.dumps(encoding_np.tolist())  # simpan sebagai JSON string
                 else:
-                    # Tambah data baru
-                    if not password:
-                        cursor.close()
-                        conn.close()
-                        return "<script>alert('Password wajib diisi.');window.history.back();</script>"
-                    hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode()
-                    cursor.execute("INSERT INTO pengguna (nama, kelas, password) VALUES (%s, %s, %s)",
-                                   (nama, kelas, hashed))
-                    conn.commit()
-            return redirect(url_for('data_pengguna'))
+                    os.remove(foto_path)
+                    return "<script>alert('Wajah tidak terdeteksi pada foto.');window.history.back();</script>"
+
+            if old_nama:
+                # Ambil data lama jika tidak mengubah foto
+                if not foto_filename or not encoding_json:
+                    cursor.execute("SELECT foto, encoding_wajah FROM pengguna WHERE nama=%s", (old_nama,))
+                    old_data = cursor.fetchone()
+                    if old_data:
+                        if not foto_filename:
+                            foto_filename = old_data['foto']
+                        if not encoding_json:
+                            encoding_json = old_data['encoding_wajah']
+
+                # Edit data
+                cursor.execute(
+                    "UPDATE pengguna SET nama=%s, jabatan=%s, divisi=%s, encoding_wajah=%s, foto=%s WHERE nama=%s",
+                    (nama, jabatan, divisi, encoding_json, foto_filename, old_nama)
+                )
+            else:
+                # Tambah data baru
+                cursor.execute(
+                    "INSERT INTO pengguna (nama, jabatan, divisi, encoding_wajah, foto) VALUES (%s, %s, %s, %s, %s)",
+                    (nama, jabatan, divisi, encoding_json, foto_filename)
+                )
+            conn.commit()
+        return redirect(url_for('data_pengguna'))
 
     # --- Proses Hapus ---
     delete_nama = request.args.get('delete')
     if delete_nama:
+        # Hapus file foto jika ada
+        cursor.execute("SELECT foto FROM pengguna WHERE nama=%s", (delete_nama,))
+        row = cursor.fetchone()
+        if row and row['foto']:
+            foto_path = os.path.join('static/foto_pengguna', row['foto'])
+            if os.path.exists(foto_path):
+                os.remove(foto_path)
+
         cursor.execute("DELETE FROM pengguna WHERE nama=%s", (delete_nama,))
         conn.commit()
         return redirect(url_for('data_pengguna'))
@@ -510,12 +497,8 @@ def data_pengguna():
     if edit_id:
         cursor.execute("SELECT * FROM pengguna WHERE id=%s", (edit_id,))
         editData = cursor.fetchone()
-        
-    filter_kelas = request.args.get('filter_kelas', '')
-    if filter_kelas:
-        cursor.execute("SELECT id, nama, kelas FROM pengguna WHERE kelas LIKE %s ORDER BY nama ASC", (f"%{filter_kelas}%",))
-    else:
-        cursor.execute("SELECT id, nama, kelas FROM pengguna ORDER BY nama ASC")
+
+    cursor.execute("SELECT id, nama, jabatan, divisi, foto FROM pengguna ORDER BY nama ASC")
     users = cursor.fetchall()
 
     cursor.close()
@@ -526,15 +509,16 @@ def data_pengguna():
         username=session['username'],
         users=users,
         editData=editData,
-        pesan_sukses=pesan_sukses,
-        filter_kelas=filter_kelas
+        pesan_sukses=pesan_sukses
     )
 
-@app.route('/guru')
-def guru_dashboard():
-    if not session.get('logged_in') or session.get('role') != 'guru':
+
+
+@app.route('/admin')
+def admin_dashboard():
+    if not session.get('logged_in') or session.get('role') != 'admin':
         return redirect(url_for('login'))
-    return render_template('guru_dashboard.html', username=session['username'])
+    return render_template('admin_dashboard.html', username=session['username'])
 
 @app.route('/siswa')
 def siswa_dashboard():
@@ -553,12 +537,10 @@ def siswa_dashboard():
 def home():
     if not session.get('logged_in'):
         return redirect(url_for('login'))
-    if session.get('role') == 'admin':
+    if session.get('role') == 'superadmin':
+        return redirect(url_for('superadmin_dashboard'))
+    elif session.get('role') == 'admin':
         return redirect(url_for('admin_dashboard'))
-    elif session.get('role') == 'guru':
-        return redirect(url_for('guru_dashboard'))
-    elif session.get('role') == 'siswa':
-        return redirect(url_for('siswa_dashboard'))
     else:
         return render_template('home.html', username=session['username'])
 
@@ -568,105 +550,110 @@ def logout():
     return redirect(url_for('login'))
 
 
-@app.route('/absen_siswa', methods=['POST'])
-def absen_siswa():
-    if not session.get('logged_in') or session.get('role') != 'siswa':
-        return redirect(url_for('login'))
+@app.route('/absen_karyawan', methods=['POST'])
+def absen_karyawan():
+    encoding_wajah = request.form.get('encoding_wajah_absen')
 
-    from datetime import datetime
 
-    encoding_wajah_absen = request.form.get('encoding_wajah_absen')
-    nama = session['username']
-    kelas = session.get('kelas')
-
-    # Ambil tanggal & waktu sekarang (untuk konsistensi file dan database)
-    tanggal = datetime.now().strftime("%Y-%m-%d")
-    waktu = datetime.now().strftime("%H:%M:%S")
-
-    # Simpan data ke session untuk halaman sukses
-    session['absen_nama'] = nama
-    session['absen_kelas'] = kelas
-    session['absen_tanggal'] = tanggal
-    session['absen_waktu'] = waktu
-
-    if not encoding_wajah_absen:
-        return "<script>alert('Data wajah absen tidak ditemukan!');window.history.back();</script>"
-
-    # Ambil encoding vector dari database
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT encoding_wajah FROM pengguna WHERE nama=%s AND kelas=%s", (nama, kelas))
-    data = cursor.fetchone()
-    cursor.close()
-    conn.close()
-
-    if not data or not data['encoding_wajah']:
-        return "<script>alert('Wajah belum terdaftar!');window.history.back();</script>"
+    if not encoding_wajah:
+        return "<script>alert('Data wajah tidak ditemukan!');window.history.back();</script>"
 
     try:
-        # Ambil vector dari database
-        vector_db = np.array(json.loads(data['encoding_wajah']))
-
-        # Ambil vector dari gambar absen
-        if "," not in encoding_wajah_absen:
-            raise Exception("Format data wajah absen tidak valid")
-        header, encoded = encoding_wajah_absen.split(",", 1)
+        # Konversi base64 ke image
+        if "," not in encoding_wajah:
+            raise Exception("Format data wajah tidak valid")
+        header, encoded = encoding_wajah.split(",", 1)
         img_bytes = base64.b64decode(encoded)
         img = Image.open(BytesIO(img_bytes)).convert("RGB")
         img_np = np.array(img)
         img_np = np.ascontiguousarray(img_np, dtype=np.uint8)
+
+        # Ekstrak encoding wajah dari gambar absen
         encodings_absen = face_recognition.face_encodings(img_np)
         if not encodings_absen:
-            raise Exception("Wajah absen tidak terdeteksi")
+            raise Exception("Wajah tidak terdeteksi")
         vector_absen = encodings_absen[0]
 
-        # Bandingkan vector
-        match = face_recognition.compare_faces([vector_db], vector_absen, tolerance=0.5)[0]
+        # Ambil semua encoding dari DB
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT nama, jabatan, divisi, encoding_wajah FROM pengguna WHERE encoding_wajah IS NOT NULL")
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        match_found = False
+        nama = jabatan = divisi = None
+
+        for row in rows:
+            try:
+                vector_db = np.array(json.loads(row['encoding_wajah']))
+                match = face_recognition.compare_faces([vector_db], vector_absen, tolerance=0.5)[0]
+                if match:
+                    nama = row['nama']
+                    jabatan = row['jabatan']
+                    divisi = row['divisi']
+                    match_found = True
+                    break
+            except Exception:
+                continue
+
+        if not match_found:
+            return "<script>alert('Wajah tidak dikenali!');window.history.back();</script>"
+
+        # Simpan foto bukti
+        tanggal = datetime.now().strftime("%Y-%m-%d")
+        waktu = datetime.now().strftime("%H:%M:%S")
+        foto_folder = os.path.join('static', 'bukti_absen_karyawan')
+        os.makedirs(foto_folder, exist_ok=True)
+        filename = f"{nama}_{tanggal}_{waktu.replace(':', '-')}.jpg".replace(' ', '_')
+        foto_path = os.path.join(foto_folder, filename)
+        img.save(foto_path)
+        foto_db = os.path.join('bukti_absen_karyawan', filename).replace("\\", "/")
+
+        # Ambil keterangan dari form
+        keterangan = request.form.get('keterangan', 'Hadir')
+        if keterangan not in ['Hadir', 'Sakit', 'Izin', 'Alfa']:
+            keterangan = 'Hadir'
+
+        # Simpan ke tabel absensi
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO absensi (nama, jabatan, divisi, tanggal, waktu, keterangan, foto)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (nama, jabatan, divisi, tanggal, waktu, keterangan, foto_db))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        # Simpan ke session
+        session['absen_nama'] = nama
+        session['absen_jabatan'] = jabatan
+        session['absen_divisi'] = divisi # jika ada kolom divisi
+        session['absen_tanggal'] = tanggal
+        session['absen_waktu'] = waktu
+
+
+        # Redirect ke halaman sukses
+        return redirect(url_for('absen_sukses'))
+
     except Exception as e:
-        print("Error absen:", e)
-        return "<script>alert('Gagal memproses wajah: {}');window.history.back();</script>".format(str(e).replace("'", "\\'"))
+        print("Error absen karyawan:", e)
+        return "<script>alert('Gagal memproses absen: {}');window.history.back();</script>".format(
+            str(e).replace("'", "\\'")
+        )
 
-    if not match:
-        return "<script>alert('Wajah tidak cocok!');window.history.back();</script>"
-
-    # Simpan file foto bukti absen
-    foto_folder = os.path.join('static', 'bukti_absen')
-    os.makedirs(foto_folder, exist_ok=True)
-    filename = f"{nama}_{kelas}_{tanggal}_{waktu.replace(':', '-')}.jpg".replace(' ', '_')
-    foto_path = os.path.join(foto_folder, filename)
-    img.save(foto_path)
-
-    # Simpan path relatif ke database (agar bisa diakses dari /static/bukti_absen/...)
-    foto_db = os.path.join('bukti_absen', filename).replace("\\", "/")
-
-    # Simpan data absen ke database
-    keterangan = request.form.get('keterangan', 'Hadir')
-    if not keterangan:
-        keterangan = 'Hadir'
-    if keterangan not in ['Hadir', 'Sakit', 'Izin', 'Alfa']:
-        return "<script>alert('Keterangan tidak valid!');window.history.back();</script>"
-    if not nama or not kelas or not tanggal or not waktu:
-        return "<script>alert('Data absen tidak lengkap!');window.history.back();</script>"
-
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO absensi (nama, kelas, tanggal, waktu, keterangan, foto) VALUES (%s, %s, %s, %s, %s, %s)",
-        (nama, kelas, tanggal, waktu, keterangan, foto_db)
-    )
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-    return redirect(url_for('absen_sukses'))
 
 @app.route('/absen_sukses')
 def absen_sukses():
     nama = session.pop('absen_nama', '')
-    kelas = session.pop('absen_kelas', '')
+    jabatan = session.pop('absen_jabatan', '')
+    divisi = session.pop('absen_divisi', '')
     tanggal = session.pop('absen_tanggal', '')
     waktu = session.pop('absen_waktu', '')
-    return render_template('absen_sukses.html', nama=nama, kelas=kelas, tanggal=tanggal, waktu=waktu)
+    return render_template('absen_sukses.html', nama=nama, jabatan=jabatan, divisi=divisi, tanggal=tanggal, waktu=waktu)
 
 @app.route('/video_feed')
 def video_feed():

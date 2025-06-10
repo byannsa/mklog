@@ -79,16 +79,16 @@
         </div>
         <div>
           <span class="username me-3">Halo, {{ username }}</span>
-          {% if session['role'] == 'admin' %}
+          {% if session['role'] == 'superadmin' %}
+          <a href="{{ url_for('superadmin_dashboard') }}" class="btn btn-outline-dark btn-custom me-2">Kembali</a>
+          {% elif session['role'] == 'admin' %}
           <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-dark btn-custom me-2">Kembali</a>
-          {% elif session['role'] == 'guru' %}
-          <a href="{{ url_for('guru_dashboard') }}" class="btn btn-outline-dark btn-custom me-2">Kembali</a>
           {% endif %}
           <!-- Tambahkan export jika sudah ada route-nya -->
 
           <!-- FORM TAMBAH / EDIT -->
           <a href="{{ url_for('data_pengguna') }}" class="btn btn-dark btn-custom me-2"
-          >Tambah User Siswa</a
+          >Tambah User Karyawan</a
           >
           <a
             href="{{ url_for('export_excel') }}"
@@ -139,15 +139,27 @@
               value="{{ editData.nama if editData else '' }}" />
           </div>
           <div class="col-md-4">
-            <label for="kelas" class="form-label">Kelas</label>
+            <label for="jabatan" class="form-label">Jabatan</label>
             <input
               type="text"
-              name="kelas"
-              id="kelas"
+              name="jabatan"
+              id="jabatan"
               class="form-control"
               required
-              value="{{ editData.kelas if editData else '' }}" />
+              value="{{ editData.jabatan if editData else '' }}" />
           </div>
+          <div class="col-md-3">
+             <label for="divisi" class="form-label">Divisi</label>
+                <select
+                  name="divisi"
+                  id="divisi"
+                  class="form-control"
+                  required>
+                  <option value="">-- Pilih Divisi --</option>
+                  <option value="Percetakan" {% if editData and editData.divisi == 'Percetakan' %}selected{% endif %}>Percetakan</option>
+                  <option value="Konstruksi" {% if editData and editData.divisi == 'Konstruksi' %}selected{% endif %}>Konstruksi</option>
+                </select>
+            </div>
           <div class="col-md-3">
             <label for="tanggal" class="form-label">Tanggal</label>
             <input
@@ -209,16 +221,16 @@
 
       <form method="GET" class="mb-3 mt-3 row g-2 align-items-end">
         <div class="col-md-4">
-          <label for="filter_kelas" class="form-label"
-            >Cari berdasarkan Kelas</label
+          <label for="filter_divisi" class="form-label"
+            >Cari berdasarkan divisi</label
           >
           <input
             type="text"
-            name="filter_kelas"
-            id="filter_kelas"
+            name="filter_divisi"
+            id="filter_divisi"
             class="form-control"
-            value="{{ filter_kelas }}"
-            placeholder="Contoh: XII IPA 1" />
+            value="{{ filter_divisi }}"
+            placeholder="Contoh: Percetakan" />
         </div>
         <div class="col-md-4">
           <label for="filter_tanggal" class="form-label"
@@ -241,11 +253,11 @@
         </div>
       </form>
 
-      {% if filter_kelas or filter_tanggal %}
+      {% if filter_divisi or filter_tanggal %}
       <div class="alert alert-info">
-        Menampilkan hasil untuk: {% if filter_kelas %}
-        <strong>Kelas:</strong> {{ filter_kelas }} {% endif %} {% if
-        filter_tanggal %} {{ filter_kelas and '&nbsp;|&nbsp;' or '' }}
+        Menampilkan hasil untuk: {% if filter_divisi %}
+        <strong>Divisi:</strong> {{ filter_divisi }} {% endif %} {% if
+        filter_tanggal %} {{ filter_divisi and '&nbsp;|&nbsp;' or '' }}
         <strong>Tanggal:</strong> {{ filter_tanggal }} {% endif %}
       </div>
       {% endif %}
@@ -263,7 +275,8 @@
                   <th>NO</th>
                   <th>Foto</th>
                   <th>Nama</th>
-                  <th>Kelas</th>
+                  <th>Jabatan</th>
+                  <th>Divisi</th>
                   <th>Tanggal</th>
                   <th>Waktu</th>
                   <th>Keterangan</th>
@@ -303,7 +316,8 @@
         {% endif %}
       </td>
       <td>{{ row.nama }}</td>
-      <td>{{ row.kelas }}</td>
+      <td>{{ row.jabatan }}</td>
+      <td>{{ row.divisi }}</td>
       <td>{{ row.tanggal }}</td>
       <td>{{ row.waktu }}</td>
       <td>{{ row.keterangan }}</td>

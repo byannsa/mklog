@@ -13,27 +13,28 @@ conn = mysql.connector.connect(**db_config)
 cursor = conn.cursor()
 
 # Buat database jika belum ada
-cursor.execute("CREATE DATABASE IF NOT EXISTS absensi_db")
-cursor.execute("USE absensi_db")
+cursor.execute("CREATE DATABASE IF NOT EXISTS absensiadv_db")
+cursor.execute("USE absensiadv_db")
 
-# Buat tabel users (admin & guru)
+# Buat tabel users (admin)
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
-    role ENUM('admin','guru') NOT NULL
+    role ENUM('superadmin','admin') NOT NULL
 )
 """)
 
-# Buat tabel pengguna (siswa)
+# Buat tabel pengguna
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS pengguna (
     id INT AUTO_INCREMENT PRIMARY KEY,
     nama VARCHAR(100) NOT NULL UNIQUE,
-    kelas VARCHAR(50) NOT NULL,
-    password VARCHAR(255) NOT NULL,
-    encoding_wajah TEXT
+    jabatan VARCHAR(50) NOT NULL,
+    divisi VARCHAR(50) NOT NULL,
+    foto VARCHAR(255) NOT NULL,
+    encoding_wajah LONGTEXT
 )
 """)
 
@@ -42,7 +43,8 @@ cursor.execute("""
 CREATE TABLE IF NOT EXISTS absensi (
     id INT AUTO_INCREMENT PRIMARY KEY,
     nama VARCHAR(100) NOT NULL,
-    kelas VARCHAR(50) NOT NULL,
+    jabatan VARCHAR(50) NOT NULL,
+    divisi VARCHAR(50) NOT NULL,
     tanggal DATE NOT NULL,
     waktu TIME NOT NULL,
     keterangan ENUM('hadir', 'izin', 'sakit', 'alpha') NOT NULL,
@@ -60,12 +62,12 @@ def insert_default_user(username, password, role):
             (username, hashed.decode('utf-8'), role)
         )
 
+insert_default_user("superadmin", "123", "superadmin")
 insert_default_user("admin", "123", "admin")
-insert_default_user("guru", "123", "guru")
 conn.commit()
 
 print("Database dan tabel berhasil dibuat!")
-print("User default: admin/123 dan guru/123")
+print("User default: superadmin/123 dan admin/123")
 
 cursor.close()
 conn.close()

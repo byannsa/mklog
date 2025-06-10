@@ -10,10 +10,11 @@
         <div class="alert alert-success text-center">
             <h4>Absen Berhasil!</h4>
             <p>Nama: <b>{{ nama }}</b></p>
-            <p>Kelas: <b>{{ kelas }}</b></p>
+            <p>Jabatan: <b>{{ jabatan }}</b></p>
+            <p>Divisi: <b>{{ divisi }}</b></p>
             <p>Tanggal: <b>{{ tanggal }}</b></p>
             <p>Waktu: <b>{{ waktu }}</b></p>
-            <a href="{{ url_for('siswa_dashboard') }}" class="btn btn-primary mt-3">Kembali ke Dashboard</a>
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-primary mt-3">Kembali ke Dashboard</a>
         </div>
     </div>
 </body>

@@ -2,7 +2,7 @@
 <html lang="id">
   <head>
     <meta charset="UTF-8" />
-    <title>Tambah Data User Siswa</title>
+    <title>Tambah Data User Karyawan</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
@@ -69,102 +69,59 @@
         </div>
       </div>
 
-      <!-- FORM UBAH MASSAL KELAS -->
-      <div class="card form-section p-4 mt-4 mb-4">
-        <h5>Ubah Semua Siswa dari Kelas Lama ke Baru</h5>
-        <form
-          action="{{ url_for('data_pengguna') }}"
-          method="POST"
-          class="row g-3">
-          <input type="hidden" name="bulk_update" value="1" />
-          <div class="col-md-2">
-            <label for="from_kelas" class="form-label">Kelas Lama</label>
-            <input
-              type="text"
-              name="from_kelas"
-              class="form-control"
-              required />
-          </div>
-          <div class="col-md-2">
-            <label for="to_kelas" class="form-label">Kelas Baru</label>
-            <input type="text" name="to_kelas" class="form-control" required />
-          </div>
-          <div class="col-12">
-            <button type="submit" class="btn btn-success btn-custom">
-              Update Semua
-            </button>
-          </div>
-        </form>
-      </div>
-
-      {% if pesan_sukses %}
-      <div class="alert alert-success alert-dismissible fade show" role="alert">
-        {{ pesan_sukses|safe }}
-        <button
-          type="button"
-          class="btn-close"
-          data-bs-dismiss="alert"
-          aria-label="Close"></button>
-      </div>
-      {% endif %}
-
       <!-- FORM TAMBAH / EDIT -->
       <div class="card form-section p-4">
-        <h5>{{ editData and 'Edit Data Users' or 'Tambah Data Users' }}</h5>
-        <form
-          action="{{ url_for('data_pengguna') }}{% if editData %}?id={{ editData.id }}{% endif %}"
-          method="POST"
-          class="row g-3">
-          {% if editData %}
-          <input type="hidden" name="old_nama" value="{{ editData.nama }}" />
-          {% endif %}
-          <div class="col-md-3">
-            <label for="nama" class="form-label">Nama</label>
-            <input
-              type="text"
-              name="nama"
-              class="form-control"
-              required
-              value="{{ editData.nama if editData else '' }}" />
-          </div>
-          <div class="col-md-3">
-            <label for="kelas" class="form-label">Kelas</label>
-            <input
-              type="text"
-              name="kelas"
-              class="form-control"
-              required
-              value="{{ editData.kelas if editData else '' }}" />
-          </div>
-          <div class="col-md-4">
-            <label for="password" class="form-label"
-              >Password {{ editData and '(Kosongkan jika tidak diubah)' or ''
-              }}</label
-            >
-            <input
-              type="password"
-              name="password"
-              class="form-control"
-              {%
-              if
-              not
-              editData
-              %}required{%
-              endif
-              %} />
-          </div>
-          <div class="col-12">
-            <button type="submit" class="btn btn-primary btn-custom">
-              Simpan
-            </button>
-            <a
-              href="{{ url_for('data_pengguna') }}"
-              class="btn btn-secondary btn-custom ms-2"
-              >Batal</a
-            >
-          </div>
-        </form>
-      </div>
+  <h5>{{ editData and 'Edit Data Users' or 'Tambah Data Users' }}</h5>
+  <form
+    action="{{ url_for('data_pengguna') }}{% if editData %}?id={{ editData.id }}{% endif %}"
+    method="POST"
+    enctype="multipart/form-data"
+    class="row g-3"
+  >
+    {% if editData %}
+    <input type="hidden" name="old_nama" value="{{ editData.nama }}" />
+    {% endif %}
+
+    <div class="col-md-3">
+      <label for="nama" class="form-label">Nama</label>
+      <input
+        type="text"
+        name="nama"
+        class="form-control"
+        required
+        value="{{ editData.nama if editData else '' }}"
+      />
+    </div>
+
+    <div class="col-md-3">
+      <label for="jabatan" class="form-label">Jabatan</label>
+      <input
+        type="text"
+        name="jabatan"
+        class="form-control"
+        required
+        value="{{ editData.jabatan if editData else '' }}"
+      />
+    </div>
+    
+
+    <div class="col-md-2">
+      <label for="divisi" class="form-label">Divisi</label>
+      <select name="divisi" class="form-select" required>
+        <option value="Percetakan" {% if editData and editData.divisi == 'Percetakan' %}selected{% endif %}>Percetakan</option>
+        <option value="Konstruksi" {% if editData and editData.divisi == 'Konstruksi' %}selected{% endif %}>Konstruksi</option>
+      </select>
+    </div>
+
+     <input type="file" name="foto" accept="image/*"> <!-- Tambah baris ini -->
+
+    <div class="col-12">
+      <button type="submit" class="btn btn-primary btn-custom">Simpan</button>
+      <a href="{{ url_for('data_pengguna') }}" class="btn btn-secondary btn-custom ms-2">Batal</a>
+    </div>
+  </form>
+</div>
+
 
      <form method="GET" class="mb-3 mt-3 row g-2 align-items-end">
         <div class="col-md-4">
@@ -205,7 +162,9 @@
                 <tr>
                   <th>NO</th>
                   <th>Nama</th>
-                  <th>Kelas</th>
+                  <th>Jabatan</th>
+                  <th>Divisi</th>
+                  <th>Foto</th>
                   <th>Aksi</th>
                 </tr>
               </thead>
@@ -214,7 +173,15 @@
                 <tr>
                   <td>{{ loop.index }}</td>
                   <td>{{ user.nama }}</td>
-                  <td>{{ user.kelas }}</td>
+                  <td>{{ user.jabatan }}</td>
+                  <td>{{ user.divisi }}</td>
+                  <td>
+  {% if user.foto %}
+    <img src="{{ url_for('static', filename='foto_pengguna/' + user.foto) }}" alt="Foto" width="80" height="80" style="object-fit: cover; border-radius: 6px;">
+  {% else %}
+    <span class="text-muted">Tidak ada foto</span>
+  {% endif %}
+</td>
                   <td>
                     <a
                       href="{{ url_for('data_pengguna', id=user.id) }}"
