@@ -124,34 +124,32 @@
 
 
      <form method="GET" class="mb-3 mt-3 row g-2 align-items-end">
-        <div class="col-md-4">
-          <label for="filter_kelas" class="form-label"
-            >Cari berdasarkan Kelas</label
-          >
-          <input
-            type="text"
-            name="filter_kelas"
-            id="filter_kelas"
-            class="form-control"
-            value="{{ filter_kelas }}"
-            placeholder="Contoh: XII IPA 1" />
-        </div>
-        <div class="col-md-4 d-flex gap-2">
-          <button type="submit" class="btn btn-dark btn-custom">Cari</button>
-          <a
-            href="{{ url_for('data_pengguna') }}"
-            class="btn btn-secondary btn-custom"
-            >Reset</a
-          >
-        </div>
-      </form>
+  <div class="col-md-4">
+    <label for="filter_nama" class="form-label">Cari berdasarkan Nama</label>
+    <input
+      type="text"
+      name="filter_nama"
+      id="filter_nama"
+      class="form-control"
+      value="{{ filter_nama }}"
+       />
+  </div>
+  <div class="col-md-4 d-flex gap-2">
+    <button type="submit" class="btn btn-dark btn-custom">Cari</button>
+    <a
+      href="{{ url_for('data_pengguna') }}"
+      class="btn btn-secondary btn-custom"
+    >Reset</a>
+  </div>
+</form>
 
-      {% if filter_kelas %}
-      <div class="alert alert-info">
-        Menampilkan hasil untuk: {% if filter_kelas %}
-        <strong>Kelas:</strong> {{ filter_kelas }} {% endif %} 
-      </div>
-      {% endif %}
+{% if filter_nama %}
+  <div class="alert alert-info">
+    Menampilkan hasil untuk:
+    <strong>Nama:</strong> {{ filter_nama }}
+  </div>
+{% endif %}
+
 
       <!-- TABEL DATA -->
       <div class="card mt-4">

@@ -4,12 +4,11 @@
     <meta charset="UTF-8" />
     <title>Data Absensi</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-      rel="stylesheet" />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"
-      rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
     <style>
       body {
         font-family: "Inter", sans-serif;
@@ -17,29 +16,19 @@
         color: #000;
       }
       .card {
-        border: 1px solid #dee2e6;
         border-radius: 0.75rem;
       }
+      .logo { height: 40px; }
+        .header-bar { display: flex; align-items: center; justify-content: space-between; padding: 1rem 0; border-bottom: 1px solid #ccc; }
+        form label { font-weight: 600; }
+
       .btn-custom {
         border-radius: 50px;
         padding: 0.5rem 1.5rem;
         font-weight: 600;
       }
-      .table thead {
-        background-color: #f8f9fa;
-      }
       .table-hover tbody tr:hover {
         background-color: #f2f2f2;
-      }
-      .logo {
-        height: 40px;
-      }
-      .header-bar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 1rem 0;
-        border-bottom: 1px solid #ccc;
       }
       .profile-img {
         height: 40px;
@@ -49,22 +38,13 @@
         display: inline-block;
       }
       svg.profile-img {
-        background: #eee;
-        padding: 4px;
-        box-sizing: content-box;
-      }
-      form label {
-        font-weight: 600;
-      }
-      .form-section {
-        margin-top: 2rem;
-      }
-      .mitra-img {
-        width: 100%;
-        height: auto;
-        display: block;
-        margin: 0 auto;
-      }
+  width: 50px;
+  height: 50px;
+  background: #eee;
+  border-radius: 50%;
+  padding: 4px;
+}
+
     </style>
   </head>
   <body>
@@ -80,259 +60,142 @@
         <div>
           <span class="username me-3">Halo, {{ username }}</span>
           {% if session['role'] == 'superadmin' %}
-          <a href="{{ url_for('superadmin_dashboard') }}" class="btn btn-outline-dark btn-custom me-2">Kembali</a>
+          <a
+            href="{{ url_for('superadmin_dashboard') }}"
+            class="btn btn-outline-dark btn-custom me-2"
+            >Kembali</a
+          >
           {% elif session['role'] == 'admin' %}
-          <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-dark btn-custom me-2">Kembali</a>
+          <a
+            href="{{ url_for('admin_dashboard') }}"
+            class="btn btn-outline-dark btn-custom me-2"
+            >Kembali</a
+          >
           {% endif %}
           <!-- Tambahkan export jika sudah ada route-nya -->
 
           <!-- FORM TAMBAH / EDIT -->
-          <a href="{{ url_for('data_pengguna') }}" class="btn btn-dark btn-custom me-2"
-          >Tambah User Karyawan</a
+          <a
+            href="{{ url_for('data_pengguna') }}"
+            class="btn btn-dark btn-custom me-2"
+            >Tambah User Karyawan</a
           >
           <a
-            href="{{ url_for('export_excel') }}"
+            href="{{ url_for('rekap_absensi') }}"
             target="_blank"
             class="btn btn-dark btn-custom me-2"
-            >Unduh Excel</a
-          >
-          <a
-            href="{{ url_for('export_pdf') }}"
-            target="_blank"
-            class="btn btn-dark btn-custom"
-            >Unduh PDF</a
+            >Rekap Absensi</a
           >
         </div>
       </div>
 
-
       <div class="card form-section p-4">
         <h5>{{ editData and 'Edit Data Absensi' or 'Tambah Data Absensi' }}</h5>
-        <form
-          action="{{ url_for('data_absensi') }}{% if editData %}?edit={{ editData.id }}{% endif %}"
-          method="POST"
-          class="row g-3">
-          <input
-            type="hidden"
-            name="old_id"
-            value="{{ editData.id if editData else 0 }}" />
-          {% if editData %}
-<div class="col-md-2">
-  <label for="id" class="form-label">ID</label>
-  <input
-    type="number"
-    name="id"
-    id="id"
-    class="form-control"
-    value="{{ editData.id }}"
-    readonly />
-</div>
-{% endif %}
+        <form action="{{ url_for('data_absensi') }}{% if editData %}?edit={{ editData.id }}{% endif %}" method="POST" class="row g-3">
+          <input type="hidden" name="old_id" value="{{ editData.id if editData else 0 }}" />
+
+          <div class="col-md-4">
+            <label for="divisi" class="form-label">Divisi</label>
+            <select name="divisi" id="divisi" class="form-control" required>
+              <option value="">-- Pilih Divisi --</option>
+              <option value="Percetakan" {% if editData and editData.divisi == 'Percetakan' %}selected{% endif %}>Percetakan</option>
+              <option value="Konstruksi" {% if editData and editData.divisi == 'Konstruksi' %}selected{% endif %}>Konstruksi</option>
+            </select>
+          </div>
+
           <div class="col-md-4">
             <label for="nama" class="form-label">Nama</label>
-            <input
-              type="text"
-              name="nama"
-              id="nama"
-              class="form-control"
-              required
-              value="{{ editData.nama if editData else '' }}" />
+            <select name="nama" id="nama" class="form-control" required>
+              <option value="">-- Pilih Nama --</option>
+            </select>
           </div>
+
           <div class="col-md-4">
             <label for="jabatan" class="form-label">Jabatan</label>
-            <input
-              type="text"
-              name="jabatan"
-              id="jabatan"
-              class="form-control"
-              required
-              value="{{ editData.jabatan if editData else '' }}" />
+            <input type="text" name="jabatan" id="jabatan" class="form-control" readonly />
           </div>
-          <div class="col-md-3">
-             <label for="divisi" class="form-label">Divisi</label>
-                <select
-                  name="divisi"
-                  id="divisi"
-                  class="form-control"
-                  required>
-                  <option value="">-- Pilih Divisi --</option>
-                  <option value="Percetakan" {% if editData and editData.divisi == 'Percetakan' %}selected{% endif %}>Percetakan</option>
-                  <option value="Konstruksi" {% if editData and editData.divisi == 'Konstruksi' %}selected{% endif %}>Konstruksi</option>
-                </select>
-            </div>
+
           <div class="col-md-3">
             <label for="tanggal" class="form-label">Tanggal</label>
-            <input
-              type="date"
-              name="tanggal"
-              id="tanggal"
-              class="form-control"
-              required
-              value="{{ editData.tanggal if editData else '' }}" />
+            <input type="date" name="tanggal" id="tanggal" class="form-control" required value="{{ editData.tanggal if editData else '' }}" />
           </div>
+
+
           <div class="col-md-3">
-            <label for="waktu" class="form-label">Waktu</label>
-            <input
-              type="time"
-              name="waktu"
-              id="waktu"
-              class="form-control"
-              required
-              value="{{ editData.waktu if editData else '' }}" />
+            <label for="keterangan" class="form-label">Keterangan</label>
+            <select name="keterangan" id="keterangan" class="form-control" required>
+              <option value="">-- Pilih Keterangan --</option>
+              <option value="Hadir" {% if editData and editData.keterangan == 'Hadir' %}selected{% endif %}>Hadir</option>
+              <option value="Izin" {% if editData and editData.keterangan == 'Izin' %}selected{% endif %}>Izin</option>
+              <option value="Sakit" {% if editData and editData.keterangan == 'Sakit' %}selected{% endif %}>Sakit</option>
+              <option value="Alpa" {% if editData and editData.keterangan == 'Alpa' %}selected{% endif %}>Alpa</option>
+            </select>
           </div>
-          <div class="col-md-3">
-             <label for="keterangan" class="form-label">Keterangan</label>
-                <select
-                  name="keterangan"
-                  id="keterangan"
-                  class="form-control"
-                  required>
-                  <option value="">-- Pilih Keterangan --</option>
-                  <option value="Hadir" {% if editData and editData.keterangan == 'Hadir' %}selected{% endif %}>Hadir</option>
-                  <option value="Izin" {% if editData and editData.keterangan == 'Izin' %}selected{% endif %}>Izin</option>
-                  <option value="Sakit" {% if editData and editData.keterangan == 'Sakit' %}selected{% endif %}>Sakit</option>
-                  <option value="Alpa" {% if editData and editData.keterangan == 'Alpa' %}selected{% endif %}>Alpa</option>
-                </select>
-            </div>
-          {% if editData and editData.foto %}
-          <div class="col-md-4">
-            <label class="form-label">Foto</label><br />
-            <img
-              src="{{ url_for('static', filename=editData.foto) }}"
-              alt="Foto Pengguna"
-              class="img-thumbnail"
-              width="200" />
-          </div>
-          {% endif %}
+
           <div class="col-12">
             <button type="submit" class="btn btn-primary btn-custom">
               {{ editData and 'Update Data' or 'Tambah Data' }}
             </button>
             {% if editData %}
-            <a
-              href="{{ url_for('data_absensi') }}"
-              class="btn btn-secondary btn-custom ms-2"
-              >Batal</a
-            >
+            <a href="{{ url_for('data_absensi') }}" class="btn btn-secondary btn-custom ms-2">Batal</a>
             {% endif %}
           </div>
         </form>
       </div>
 
-      <form method="GET" class="mb-3 mt-3 row g-2 align-items-end">
-        <div class="col-md-4">
-          <label for="filter_divisi" class="form-label"
-            >Cari berdasarkan divisi</label
-          >
-          <input
-            type="text"
-            name="filter_divisi"
-            id="filter_divisi"
-            class="form-control"
-            value="{{ filter_divisi }}"
-            placeholder="Contoh: Percetakan" />
-        </div>
-        <div class="col-md-4">
-          <label for="filter_tanggal" class="form-label"
-            >Cari berdasarkan Tanggal</label
-          >
-          <input
-            type="date"
-            name="filter_tanggal"
-            id="filter_tanggal"
-            class="form-control"
-            value="{{ filter_tanggal }}" />
-        </div>
-        <div class="col-md-4 d-flex gap-2">
-          <button type="submit" class="btn btn-dark btn-custom">Cari</button>
-          <a
-            href="{{ url_for('data_absensi') }}"
-            class="btn btn-secondary btn-custom"
-            >Reset</a
-          >
-        </div>
-      </form>
-
-      {% if filter_divisi or filter_tanggal %}
-      <div class="alert alert-info">
-        Menampilkan hasil untuk: {% if filter_divisi %}
-        <strong>Divisi:</strong> {{ filter_divisi }} {% endif %} {% if
-        filter_tanggal %} {{ filter_divisi and '&nbsp;|&nbsp;' or '' }}
-        <strong>Tanggal:</strong> {{ filter_tanggal }} {% endif %}
-      </div>
-      {% endif %}
-
-      <!-- TABEL DATA -->
       <div class="card mt-4">
         <div class="card-body p-0">
           <div class="table-responsive">
             <table class="table table-striped table-hover mb-0">
-              <caption class="caption text-muted px-3 pt-2">
-                Data absensi terbaru berdasarkan tanggal dan waktu
-              </caption>
               <thead>
-                <tr>
-                  <th>NO</th>
-                  <th>Foto</th>
-                  <th>Nama</th>
-                  <th>Jabatan</th>
-                  <th>Divisi</th>
-                  <th>Tanggal</th>
-                  <th>Waktu</th>
-                  <th>Keterangan</th>
-                  <th>Aksi</th>
-                </tr>
-              </thead>
-             <tbody>
+  <tr>
+    <th>No</th>
+    <th>Foto</th>
+    <th>Nama</th>
+    <th>Jabatan</th>
+    <th>Divisi</th>
+    <th>Tanggal</th>
+    <th>Waktu Masuk</th>
+    <th>Waktu Pulang</th>
+    <th>Keterangan</th>
+    <th>Aksi</th>
+  </tr>
+</thead>
+<tbody>
   {% if absensi %}
-    {% for row in absensi %}
-    <tr>
-      <td>{{ loop.index }}</td>
-      <td>
-        {% if row.foto %}
-        <img
-          src="{{ url_for('static', filename=row.foto) }}"
-          alt="Foto {{ row.nama }}"
-          class="img-thumbnail"
-          width="90" />
-        {% else %}
-        <svg
-          class="profile-img"
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 64 64"
-          fill="none"
-          stroke="#000"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round">
-          <circle cx="32" cy="32" r="30" fill="#fff" />
-          <circle cx="20" cy="24" r="5" fill="#000" />
-          <circle cx="44" cy="24" r="5" fill="#000" />
-          <path
-            d="M20 44c4 4 20 4 20 0"
-            stroke="#000"
-            stroke-width="3" />
-        </svg>
-        {% endif %}
-      </td>
-      <td>{{ row.nama }}</td>
-      <td>{{ row.jabatan }}</td>
-      <td>{{ row.divisi }}</td>
-      <td>{{ row.tanggal }}</td>
-      <td>{{ row.waktu }}</td>
-      <td>{{ row.keterangan }}</td>
-      <td>
-        <a href="{{ url_for('data_absensi', edit=row.id) }}" class="btn btn-sm btn-warning">Edit</a>
-        <a href="{{ url_for('data_absensi', delete=row.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus data ini?')">Hapus</a>
-      </td>
-    </tr>
-    {% endfor %}
+  {% for row in absensi %}
+  <tr>
+    <td>{{ loop.index }}</td>
+    <td>
+      {% if row.foto %}
+      <img src="{{ url_for('static', filename=row.foto) }}" alt="Foto" class="img-thumbnail" width="90" />
+      {% else %}
+      <!-- Icon SVG Default Jika Tidak Ada Foto -->
+      <svg class="profile-img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="#000" stroke-width="2">
+        <circle cx="32" cy="32" r="30" fill="#f0f0f0" />
+        <circle cx="20" cy="24" r="5" fill="#000" />
+        <circle cx="44" cy="24" r="5" fill="#000" />
+        <path d="M20 44c4 4 20 4 20 0" stroke="#000" stroke-width="3" />
+      </svg>
+      {% endif %}
+    </td>
+    <td>{{ row.nama }}</td>
+    <td>{{ row.jabatan }}</td>
+    <td>{{ row.divisi }}</td>
+    <td>{{ row.tanggal }}</td>
+    <td>{{ row.waktu }}</td>
+    <td>{{ row.waktu_pulang }}</td>
+    <td>{{ row.keterangan }}</td>
+    <td>
+      <a href="{{ url_for('data_absensi', edit=row.id) }}" class="btn btn-sm btn-warning">Edit</a>
+      <a href="{{ url_for('data_absensi', delete=row.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus data ini?')">Hapus</a>
+    </td>
+  </tr>
+  {% endfor %}
   {% else %}
-    <tr>
-      <td colspan="8" class="text-center py-4">
-        Belum ada data absensi.
-      </td>
-    </tr>
+  <tr>
+    <td colspan="9" class="text-center">Belum ada data absensi.</td>
+  </tr>
   {% endif %}
 </tbody>
             </table>
@@ -340,5 +203,53 @@
         </div>
       </div>
     </div>
+
+    <script>
+      const penggunaData = {{ pengguna_list | tojson | safe }};
+      const namaSelect = document.getElementById('nama');
+      const divisiSelect = document.getElementById('divisi');
+      const jabatanInput = document.getElementById('jabatan');
+
+      function filterNamaByDivisi(divisi) {
+        namaSelect.innerHTML = '<option value="">-- Pilih Nama --</option>';
+        penggunaData.forEach(p => {
+          if (p.divisi === divisi) {
+            const option = document.createElement('option');
+            option.value = p.nama;
+            option.textContent = p.nama;
+            namaSelect.appendChild(option);
+          }
+        });
+        jabatanInput.value = '';
+      }
+
+      divisiSelect.addEventListener('change', function () {
+        filterNamaByDivisi(this.value);
+      });
+
+      namaSelect.addEventListener('change', function () {
+        const selected = penggunaData.find(p => p.nama === this.value);
+        if (selected) {
+          jabatanInput.value = selected.jabatan;
+          divisiSelect.value = selected.divisi;
+          const today = new Date();
+          const yyyy = today.getFullYear();
+          const mm = String(today.getMonth() + 1).padStart(2, '0');
+          const dd = String(today.getDate()).padStart(2, '0');
+          document.getElementById('tanggal').value = `${yyyy}-${mm}-${dd}`;
+          const hours = String(today.getHours()).padStart(2, '0');
+          const minutes = String(today.getMinutes()).padStart(2, '0');
+          document.getElementById('waktu').value = `${hours}:${minutes}`;
+        }
+      });
+
+      {% if editData %}
+      document.addEventListener('DOMContentLoaded', function () {
+        filterNamaByDivisi('{{ editData.divisi }}');
+        namaSelect.value = '{{ editData.nama }}';
+        jabatanInput.value = '{{ editData.jabatan }}';
+      });
+      {% endif %}
+    </script>
   </body>
 </html>

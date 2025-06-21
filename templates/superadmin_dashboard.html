@@ -22,7 +22,10 @@
     <div class="container py-4">
         <div class="header-bar mb-4">
             <div class="d-flex align-items-center">
-                <img src="{{ url_for('static', filename='assets/log.png') }}" alt="Logo" class="logo me-3" />
+                <div class="header-left d-flex align-items-center gap-3">
+                    <img src="{{ url_for('static', filename='assets/fadhil.jpg') }}" alt="Logo" style="height: 40px" />
+                    <h1></h1>
+                </div>
                 <h4 class="mb-0">Dashboard Admin</h4>
             </div>
             <div>
@@ -40,20 +43,13 @@
                 {% endif %}
                 <div class="col-md-3">
                     <label for="username" class="form-label">Username</label>
-                    <input
-                        type="text"
-                        name="username"
-                        class="form-control"
-                        required
-                        value="{{ edit_user.username if edit_user else '' }}" />
+                    <input type="text" name="username" class="form-control" required value="{{ edit_user.username if edit_user else '' }}" />
                 </div>
                 <div class="col-md-2">
-                    <label for="password" class="form-label">Password {{ edit_user and '(Kosongkan jika tidak diubah)' or '' }}</label>
-                    <input
-                        type="password"
-                        name="password"
-                        class="form-control"
-                        {% if not edit_user %}required{% endif %} />
+                    <label for="password" class="form-label">
+                        Password {{ edit_user and '(Kosongkan jika tidak diubah)' or '' }}
+                    </label>
+                    <input type="password" name="password" class="form-control" {% if not edit_user %}required{% endif %} />
                 </div>
                 <div class="col-md-2">
                     <label for="role" class="form-label">Role</label>
@@ -63,14 +59,12 @@
                     </select>
                 </div>
                 <div class="col-12 d-flex justify-content-between align-items-center">
-  <div>
-    <button type="submit" class="btn btn-primary btn-custom">Simpan</button>
-    <a href="{{ url_for('superadmin_dashboard') }}" class="btn btn-secondary btn-custom ms-2">Batal</a>
-  </div>
-  <a href="{{ url_for('data_absensi') }}" class="btn btn-secondary btn-custom ms-2">Lihat Data Absensi Siswa</a>
-</div>
-
-
+                    <div>
+                        <button type="submit" class="btn btn-primary btn-custom">Simpan</button>
+                        <a href="{{ url_for('superadmin_dashboard') }}" class="btn btn-secondary btn-custom ms-2">Batal</a>
+                    </div>
+                    <a href="{{ url_for('data_absensi') }}" class="btn btn-secondary btn-custom ms-2">Lihat Data Absensi Karyawan</a>
+                </div>
             </form>
         </div>
 

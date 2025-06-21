@@ -82,6 +82,13 @@
             data-bs-target="#absenModal">
             Absen Sekarang
           </button>
+          <button
+            class="btn btn-warning"
+            data-bs-toggle="modal"
+            data-bs-target="#pulangModal">
+            Absen Pulang
+          </button>
+
           <a href="{{ url_for('logout') }}" class="btn btn-dark">Logout</a>
         </div>
       </header>
@@ -98,6 +105,81 @@
           data-bs-dismiss="alert"></button>
       </div>
       {% endfor %} {% endif %} {% endwith %}
+
+      <!-- Modal untuk absen pulang -->
+      <div
+        class="modal fade"
+        id="pulangModal"
+        tabindex="-1"
+        aria-labelledby="pulangModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+          <div class="modal-content">
+            <form
+              id="pulangForm"
+              action="{{ url_for('absen_pulang') }}"
+              method="POST">
+              <div class="modal-body row">
+                <div class="col-md-6 position-relative">
+                  <div style="position: relative">
+                    <video
+                      id="videoPulang"
+                      width="100%"
+                      height="auto"
+                      autoplay
+                      muted
+                      playsinline
+                      style="
+                        border-radius: 12px;
+                        background: #222;
+                        display: block;
+                      "></video>
+                    <canvas
+                      id="overlayPulang"
+                      style="
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        pointer-events: none;
+                      "></canvas>
+                  </div>
+                  <div
+                    id="status-indikator-pulang"
+                    style="margin-top: 10px; text-align: center">
+                    <span id="status-senyum-pulang">Senyum: ❌</span> |
+                    <span id="status-motion-pulang">Motion: ❌</span> |
+                    <span id="status-mouth-pulang">Buka Mulut: ❌</span>
+                  </div>
+                  <div
+                    id="challenge-pulang"
+                    style="
+                      margin: 10px 0;
+                      font-weight: bold;
+                      color: #2c3e50;
+                    "></div>
+
+                  <!-- Hidden input -->
+                  <input type="hidden" name="foto" id="fotoInputPulang" />
+                  <input
+                    type="hidden"
+                    name="encoding_wajah_absen"
+                    id="encodingWajahPulangInput" />
+                </div>
+                <div class="col-md-6 d-flex align-items-center">
+                  <button
+                    type="submit"
+                    class="btn btn-dark flex-fill"
+                    id="submitPulang">
+                    Absen Pulang
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
 
       <div
         class="modal fade"
@@ -468,48 +550,248 @@
         }
       </style>
 
-      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-      <script src="https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js"></script>
+      <!-- Tambahkan sebelum </body> -->
+      <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+      <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
       <script>
+        let modelsLoaded = false;
+
+        async function loadModels() {
+          if (!modelsLoaded) {
+            await faceapi.nets.tinyFaceDetector.loadFromUri(
+              "/static/models/tiny_face_detector"
+            );
+            await faceapi.nets.faceLandmark68Net.loadFromUri(
+              "/static/models/face_landmark_68"
+            );
+            await faceapi.nets.faceExpressionNet.loadFromUri(
+              "/static/models/face_expression"
+            );
+            modelsLoaded = true;
+            console.log("Model face-api berhasil dimuat");
+          }
+        }
+
+        // ========================= ABSEN PULANG =========================
+        const pulangModal = document.getElementById("pulangModal");
+        const videoPulang = document.getElementById("videoPulang");
+        const overlayPulang = document.getElementById("overlayPulang");
+        const fotoInputPulang = document.getElementById("fotoInputPulang");
+        const encodingInputPulang = document.getElementById(
+          "encodingWajahPulangInput"
+        );
+        const submitBtnPulang = document.getElementById("submitPulang");
+
+        const statusSenyumPulang = document.getElementById(
+          "status-senyum-pulang"
+        );
+        const statusMotionPulang = document.getElementById(
+          "status-motion-pulang"
+        );
+        const statusMouthPulang = document.getElementById(
+          "status-mouth-pulang"
+        );
+        const challengePulang = document.getElementById("challenge-pulang");
+
+        let streamPulang = null;
+        let detectingPulang = false;
+        let challengeIndexPulang = 0;
+        let challengePassedPulang = false;
+        let lastImageDataPulang = null;
+        let noMotionCountPulang = 0;
+
+        function updateChallengeTextPulang() {
+          const challenge = ["smile", "open_mouth"][challengeIndexPulang];
+          challengePulang.textContent =
+            challenge === "smile" ? "Senyum sekarang!" : "Buka mulut sekarang!";
+        }
+
+        async function detectSmilePulang() {
+          overlayPulang.width = videoPulang.videoWidth;
+          overlayPulang.height = videoPulang.videoHeight;
+          const ctx = overlayPulang.getContext("2d");
+          detectingPulang = true;
+
+          const options = new faceapi.TinyFaceDetectorOptions({
+            inputSize: 320,
+            scoreThreshold: 0.3,
+          });
+
+          while (detectingPulang) {
+            const result = await faceapi
+              .detectSingleFace(videoPulang, options)
+              .withFaceLandmarks()
+              .withFaceExpressions();
+
+            ctx.clearRect(0, 0, overlayPulang.width, overlayPulang.height);
+            ctx.drawImage(
+              videoPulang,
+              0,
+              0,
+              overlayPulang.width,
+              overlayPulang.height
+            );
+
+            const imageData = ctx.getImageData(
+              0,
+              0,
+              overlayPulang.width,
+              overlayPulang.height
+            );
+            let motion = true;
+
+            if (lastImageDataPulang) {
+              let diff = 0;
+              for (let i = 0; i < imageData.data.length; i += 4) {
+                diff += Math.abs(
+                  imageData.data[i] - lastImageDataPulang.data[i]
+                );
+                diff += Math.abs(
+                  imageData.data[i + 1] - lastImageDataPulang.data[i + 1]
+                );
+                diff += Math.abs(
+                  imageData.data[i + 2] - lastImageDataPulang.data[i + 2]
+                );
+              }
+              motion = diff > 100000;
+            }
+            lastImageDataPulang = imageData;
+
+            let smiling = false;
+            let mouthOpen = false;
+
+            if (result) {
+              const { x, y, width, height } = result.detection.box;
+              const happy = result.expressions.happy;
+              const mouth = result.landmarks.getMouth();
+              mouthOpen = Math.abs(mouth[14].y - mouth[18].y) > 18;
+              ctx.beginPath();
+              ctx.lineWidth = 4;
+              ctx.strokeStyle = happy > 0.7 ? "lime" : "red";
+              ctx.rect(x, y - height * 0.13, width, height);
+              ctx.stroke();
+              smiling = happy > 0.7;
+
+              if (challengeIndexPulang === 0 && smiling) {
+                challengeIndexPulang = 1;
+                updateChallengeTextPulang();
+              } else if (challengeIndexPulang === 1 && mouthOpen) {
+                challengePassedPulang = true;
+              }
+            }
+
+            if (challengePassedPulang)
+              challengePulang.textContent = "✅ Challenge berhasil!";
+            if (!motion) noMotionCountPulang++;
+            else noMotionCountPulang = 0;
+
+            submitBtnPulang.disabled =
+              noMotionCountPulang > 15 || !challengePassedPulang;
+            statusSenyumPulang.textContent =
+              "Senyum: " + (challengeIndexPulang > 0 ? "✅" : "❌");
+            statusMotionPulang.textContent =
+              "Motion: " + (motion ? "✅" : "❌");
+            statusMouthPulang.textContent =
+              "Buka Mulut: " + (challengePassedPulang ? "✅" : "❌");
+
+            await new Promise((r) => setTimeout(r, 100));
+          }
+        }
+
+        pulangModal.addEventListener("shown.bs.modal", async function () {
+          submitBtnPulang.disabled = true;
+          challengeIndexPulang = 0;
+          challengePassedPulang = false;
+          lastImageDataPulang = null;
+          updateChallengeTextPulang();
+
+          await loadModels();
+
+          streamPulang = await navigator.mediaDevices.getUserMedia({
+            video: true,
+          });
+          videoPulang.setAttribute("playsinline", true);
+          videoPulang.setAttribute("autoplay", true);
+          videoPulang.setAttribute("muted", true);
+          videoPulang.srcObject = streamPulang;
+
+          videoPulang.onloadedmetadata = () => {
+            overlayPulang.width = videoPulang.videoWidth;
+            overlayPulang.height = videoPulang.videoHeight;
+            detectSmilePulang();
+          };
+        });
+
+        pulangModal.addEventListener("hidden.bs.modal", function () {
+          detectingPulang = false;
+          if (streamPulang) {
+            streamPulang.getTracks().forEach((track) => track.stop());
+            videoPulang.srcObject = null;
+            streamPulang = null;
+          }
+          overlayPulang
+            .getContext("2d")
+            .clearRect(0, 0, overlayPulang.width, overlayPulang.height);
+          submitBtnPulang.disabled = true;
+        });
+
+        document
+          .getElementById("pulangForm")
+          .addEventListener("submit", function (e) {
+            const canvas = document.createElement("canvas");
+            canvas.width = videoPulang.videoWidth;
+            canvas.height = videoPulang.videoHeight;
+            canvas.getContext("2d").drawImage(videoPulang, 0, 0);
+            const dataURL = canvas.toDataURL("image/jpeg", 0.7);
+            fotoInputPulang.value = dataURL;
+            encodingInputPulang.value = dataURL;
+          });
+
+        async function loadModels() {
+          if (!modelsLoaded) {
+            await faceapi.nets.tinyFaceDetector.loadFromUri(
+              "/static/models/tiny_face_detector"
+            );
+            await faceapi.nets.faceLandmark68Net.loadFromUri(
+              "/static/models/face_landmark_68"
+            );
+            await faceapi.nets.faceExpressionNet.loadFromUri(
+              "/static/models/face_expression"
+            );
+            modelsLoaded = true;
+            console.log("Model face-api berhasil dimuat");
+          }
+        }
+
+        // ========================= ABSEN SEKARANG =========================
+        const absenModal = document.getElementById("absenModal");
         const video = document.getElementById("video");
         const overlay = document.getElementById("overlay");
         const fotoInput = document.getElementById("fotoInput");
-        const submitBtn = document.getElementById("submitAbsen");
-        const absenModal = document.getElementById("absenModal");
+        const encodingInput = document.getElementById(
+          "encodingWajahAbsenInput"
+        );
+        const submitBtnAbsen = document.getElementById("submitAbsen");
+
         const statusSenyum = document.getElementById("status-senyum");
         const statusMotion = document.getElementById("status-motion");
         const statusMouth = document.getElementById("status-mouth");
+        const challenge = document.getElementById("challenge");
 
         let stream = null;
         let detecting = false;
-
-        const challenges = ["smile", "open_mouth"];
         let challengeIndex = 0;
         let challengePassed = false;
         let lastImageData = null;
         let noMotionCount = 0;
 
         function updateChallengeText() {
-          const challenge = challenges[challengeIndex];
-          document.getElementById("challenge").textContent =
-            challenge === "smile" ? "Senyum sekarang!" : "Buka mulut sekarang!";
-        }
-
-        async function loadModels() {
-          await faceapi.nets.tinyFaceDetector.loadFromUri(
-            "https://justadudewhohacks.github.io/face-api.js/models"
-          );
-          await faceapi.nets.faceExpressionNet.loadFromUri(
-            "https://justadudewhohacks.github.io/face-api.js/models"
-          );
-          await faceapi.nets.faceLandmark68Net.loadFromUri(
-            "https://justadudewhohacks.github.io/face-api.js/models"
-          );
-        }
-
-        async function startVideo() {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          video.srcObject = stream;
+          const ch = ["smile", "open_mouth"][challengeIndex];
+          challenge.textContent =
+            ch === "smile" ? "Senyum sekarang!" : "Buka mulut sekarang!";
         }
 
         async function detectSmile() {
@@ -578,41 +860,37 @@
               }
             }
 
-            if (challengePassed) {
-              document.getElementById("challenge").textContent =
-                "✅ Challenge berhasil!";
-            }
+            if (challengePassed)
+              challenge.textContent = "✅ Challenge berhasil!";
+            if (!motion) noMotionCount++;
+            else noMotionCount = 0;
 
-            if (!motion) {
-              noMotionCount++;
-            } else {
-              noMotionCount = 0;
-            }
-
-            if (noMotionCount > 15 || !challengePassed) {
-              submitBtn.disabled = true;
-            } else {
-              submitBtn.disabled = false;
-            }
-
+            submitBtnAbsen.disabled = noMotionCount > 15 || !challengePassed;
             statusSenyum.textContent =
               "Senyum: " + (challengeIndex > 0 ? "✅" : "❌");
             statusMotion.textContent = "Motion: " + (motion ? "✅" : "❌");
             statusMouth.textContent =
-              "Mulut Terbuka: " + (challengePassed ? "✅" : "❌");
+              "Buka Mulut: " + (challengePassed ? "✅" : "❌");
 
             await new Promise((r) => setTimeout(r, 100));
           }
         }
 
         absenModal.addEventListener("shown.bs.modal", async function () {
-          submitBtn.disabled = true;
+          submitBtnAbsen.disabled = true;
           challengeIndex = 0;
           challengePassed = false;
           lastImageData = null;
           updateChallengeText();
+
           await loadModels();
-          await startVideo();
+
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          video.setAttribute("playsinline", true);
+          video.setAttribute("autoplay", true);
+          video.setAttribute("muted", true);
+          video.srcObject = stream;
+
           video.onloadedmetadata = () => {
             overlay.width = video.videoWidth;
             overlay.height = video.videoHeight;
@@ -630,7 +908,7 @@
           overlay
             .getContext("2d")
             .clearRect(0, 0, overlay.width, overlay.height);
-          submitBtn.disabled = true;
+          submitBtnAbsen.disabled = true;
         });
 
         document
@@ -642,37 +920,8 @@
             canvas.getContext("2d").drawImage(video, 0, 0);
             const dataURL = canvas.toDataURL("image/jpeg", 0.7);
             fotoInput.value = dataURL;
-            document.getElementById("encodingWajahAbsenInput").value = dataURL;
+            encodingInput.value = dataURL;
           });
-
-        // Slider logic
-        const slides = document.querySelectorAll(".slide");
-        let currentIndex = 0;
-        const totalSlides = slides.length;
-
-        const prevBtn = document.getElementById("prevBtn");
-        const nextBtn = document.getElementById("nextBtn");
-
-        function showSlide(index) {
-          slides.forEach((slide, i) => {
-            slide.classList.toggle("active", i === index);
-          });
-        }
-
-        function nextSlide() {
-          currentIndex = (currentIndex + 1) % totalSlides;
-          showSlide(currentIndex);
-        }
-
-        function prevSlide() {
-          currentIndex = (currentIndex - 1 + totalSlides) % totalSlides;
-          showSlide(currentIndex);
-        }
-
-        nextBtn.addEventListener("click", nextSlide);
-        prevBtn.addEventListener("click", prevSlide);
-
-        setInterval(nextSlide, 5000);
       </script>
     </div>
   </body>
